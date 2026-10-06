@@ -106,14 +106,19 @@ One photo in a family card → centred single frame (landscape photos get a wide
 
 ## Intake form (Google Form → Sheet → profile folder)
 
-`forms/gpv_form.gs` is a Google Apps Script that creates the Gujarati intake form and its response Sheet.
+`forms/gpv_form.gs` (v2) is a Google Apps Script that creates the Gujarati intake form and its response Sheet.
+`forms/gpv_form_v1.gs` is the first version, kept only for responses already collected with it.
+
+v2: birth **year** only · optional **couple photo** for Dada-Dadi, Nana-Nani, Mata-Pita (landscape gets the
+wide frame) · siblings **branch by relation** (બહેન-બનેવી / ભાઈ-ભાભી / મોટા ભાઈ-ભાભી / ભાઈ / બહેન each get their
+own fields, up to 2 siblings) · own **Income / Property** section.
 
 1. script.google.com → New project → paste `forms/gpv_form.gs` → run `createGujPremiumForm` (authorise).
 2. The log prints the form, share and Sheet links, plus the **file-upload questions** to add by hand
    (Apps Script cannot create upload questions). Use exactly the titles printed, in the sections named.
-3. Each submission creates `Drive / Guj Premium Video - Profiles / <id>_<first name>/` with
-   `profile.json` + `photos/` (renamed: hero, g1…g10, dadi, dada, nani, nana, mata, pita, s1, s2, edu, work, logo),
-   and fills the Sheet's `JSON` and `Folder` columns.
+3. Each submission creates `Drive / Guj Premium Video - Profiles / <id>_<first name>/` with `profile.json` +
+   `photos/` (hero, g1…g10, dadi, dada, dd_couple, nani, nana, nn_couple, mata, pita, par_couple, s1_*, s2_*,
+   edu, work, logo) and fills the Sheet's `JSON` and `Folder` columns.
 4. Download that folder as a zip → `profiles/<name>/` → render.
 5. After editing a row in the Sheet, run `rebuildSelectedRow` (or `rebuildAllRows`).
 

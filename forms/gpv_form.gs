@@ -1,37 +1,54 @@
 /**
- * Guj Premium Video — Google Form + Sheet + profile.json builder (Google Apps Script)
+ * Guj Premium Video — intake Google Form v2 + Sheet + profile.json builder (Google Apps Script)
+ *
+ * v2 changes: birth YEAR only · couple-photo option (grandparents, parents) · siblings branch by
+ * relation (ભાઈ-ભાભી / બહેન-બનેવી / ભાઈ / બહેન get their own fields) · own Income / Property section.
+ * Use a NEW Apps Script project for v2. Keep the v1 project (forms/gpv_form_v1.gs) for old responses.
  *
  * SETUP (once)
  *   1. script.google.com -> New project -> paste this file -> Save.
- *   2. Run createGujPremiumForm  (authorise Forms, Sheets, Drive).
- *      The log prints the form edit link, the public link and the Sheet link.
- *   3. Apps Script cannot create "File upload" questions. Open the form editor and add the
- *      upload questions listed in UPLOADS below, with EXACTLY those titles, in the sections named.
- *      (Run listUploadQuestions to print the list again.)
+ *   2. Run createGujPremiumForm (authorise Forms, Sheets, Drive, triggers).
+ *      The log prints the form edit / share / Sheet links and the upload questions to add.
+ *   3. Apps Script cannot create "File upload" questions: add the ones in UPLOADS by hand, with EXACTLY
+ *      those titles, at the end of the section named. (Run listUploadQuestions to print them again.)
  *
  * EVERY SUBMISSION (automatic)
- *   - A Drive folder  "Guj Premium Video - Profiles/<id>_<first name>/"  is created with
- *     profile.json + photos/ (uploads copied and renamed: hero.jpg, dada.jpg, g1.jpg ...).
- *   - The Sheet gets two columns: JSON (the profile JSON) and Folder (link to that folder).
- *   - To render: download the folder (zip) from Drive and give it to the renderer:
- *       profiles/<name>/profile.json + profiles/<name>/photos/...
- *
- * AFTER EDITING A ROW IN THE SHEET
- *   - Select a cell in that row and run rebuildSelectedRow (or rebuildAllRows).
+ *   Drive "Guj Premium Video - Profiles/<id>_<first name>/" gets profile.json + photos/ (renamed),
+ *   and the Sheet gets JSON + Folder columns. After editing a row: rebuildSelectedRow / rebuildAllRows.
  */
 
 const FORM_TITLE = 'કોમ્યુટ્રી CT પ્રિમિયમ મેમ્બર - વિડિયો બાયોડેટા (Guj Premium Video)';
 const DRIVE_ROOT = 'Guj Premium Video - Profiles';
 
-// ---------------------------------------------------------------- question titles
-// Keys are used by the JSON builder; titles must stay identical in the form.
+// ---------------------------------------------------------------- section titles
+const SEC = {
+  dd: 'દાદા-દાદી',
+  nn: 'નાના-નાની',
+  par: 'માતા-પિતા',
+  s1: 'ભાઈ/બહેન 1',
+  s1bb: 'ભાઈ/બહેન 1 - બહેન-બનેવી વિગત',
+  s1bh: 'ભાઈ/બહેન 1 - ભાઈ-ભાભી વિગત',
+  s1b: 'ભાઈ/બહેન 1 - ભાઈ વિગત',
+  s1s: 'ભાઈ/બહેન 1 - બહેન વિગત',
+  s1ph: 'ભાઈ/બહેન 1 - ફોટો',
+  s2bb: 'ભાઈ/બહેન 2 - બહેન-બનેવી વિગત',
+  s2bh: 'ભાઈ/બહેન 2 - ભાઈ-ભાભી વિગત',
+  s2b: 'ભાઈ/બહેન 2 - ભાઈ વિગત',
+  s2s: 'ભાઈ/બહેન 2 - બહેન વિગત',
+  s2ph: 'ભાઈ/બહેન 2 - ફોટો',
+  edu: 'અભ્યાસ',
+  work: 'વ્યવસાય',
+  prop: 'Income / Property',
+};
+
+// ---------------------------------------------------------------- question titles (must stay identical)
 const Q = {
   gender: 'ઉમેદવાર (Candidate)',
   name: 'ઉમેદવારનું પૂરું નામ - ગુજરાતીમાં (Full name)',
   first_name: 'પહેલું નામ - ગુજરાતીમાં (First name)',
   native_village: 'ગામ (Native village)',
   city: 'હાલ (Current city / area)',
-  dob: 'જન્મ તારીખ (Date of birth)',
+  birth_year: 'જન્મ વર્ષ (Birth year)',
   marital: 'વૈવાહિક સ્થિતિ (Marital status)',
   height_ft: 'ઊંચાઈ - ફૂટ (Height, feet)',
   height_in: 'ઊંચાઈ - ઇંચ (Height, inches)',
@@ -53,15 +70,6 @@ const Q = {
   father_name: 'પિતાનું ટૂંકું નામ (e.g. નિલેશભાઈ)',
   father_occ: 'પિતાનો વ્યવસાય - one line per row (e.g. Business: / Company, City / (Description))',
 
-  s1_rel: 'ભાઈ/બહેન 1 - સંબંધ (Sibling 1 relation)',
-  s1_name: 'ભાઈ/બહેન 1 - નામ (as on card)',
-  s1_place: 'ભાઈ/બહેન 1 - હાલ (place)',
-  s1_details: 'ભાઈ/બહેન 1 - વિગત, one line per person (e.g. કિંજલ: Teacher)',
-  s2_rel: 'ભાઈ/બહેન 2 - સંબંધ (Sibling 2 relation)',
-  s2_name: 'ભાઈ/બહેન 2 - નામ (as on card)',
-  s2_place: 'ભાઈ/બહેન 2 - હાલ (place)',
-  s2_details: 'ભાઈ/બહેન 2 - વિગત, one line per person',
-
   edu1_degree: 'અભ્યાસ 1 - Degree (e.g. B.Com)',
   edu1_inst: 'અભ્યાસ 1 - College / University',
   edu2_degree: 'અભ્યાસ 2 - Degree (optional)',
@@ -73,40 +81,70 @@ const Q = {
   work_desc: 'બિઝનેસ / કામ વિશે (e.g. Retailer of Steel & Home Appliances)',
   work_bullets: 'વ્યવસાય - points, one per line (for "List of points")',
 
-  property: 'Income / Property - one per line (e.g. Residence 3BHK at Mulund)',
+  income: 'Income (optional, e.g. 20-50 Lakhs p.a.)',
+  property: 'Property - one per line (e.g. Residence 3BHK at Mulund)',
 };
+
+// Sibling questions: n = 1 or 2. Each relation has its own section and fields.
+const SQ = n => ({
+  type: `ભાઈ/બહેન ${n} - સંબંધ (Sibling ${n})`,
+  bb_sis: `ભાઈ/બહેન ${n} - બહેનનું નામ (first name, e.g. કિંજલ)`,
+  bb_bil: `ભાઈ/બહેન ${n} - બનેવીનું પૂરું નામ (e.g. દિવ્ય ભાવેશ રાંભિયા)`,
+  bb_place: `ભાઈ/બહેન ${n} - બહેન-બનેવી હાલ (place)`,
+  bb_sis_work: `ભાઈ/બહેન ${n} - બહેનનો વ્યવસાય / અભ્યાસ`,
+  bb_bil_work: `ભાઈ/બહેન ${n} - બનેવીનો વ્યવસાય`,
+  bh_bro: `ભાઈ/બહેન ${n} - ભાઈનું પૂરું નામ (e.g. હાર્દિક મનોજ મારૂ)`,
+  bh_sil: `ભાઈ/બહેન ${n} - ભાભીનું નામ (first name)`,
+  bh_place: `ભાઈ/બહેન ${n} - ભાઈ-ભાભી હાલ (place)`,
+  bh_bro_work: `ભાઈ/બહેન ${n} - ભાઈનો વ્યવસાય`,
+  bh_sil_work: `ભાઈ/બહેન ${n} - ભાભીનો વ્યવસાય / અભ્યાસ`,
+  b_name: `ભાઈ/બહેન ${n} - ભાઈનું પૂરું નામ (unmarried)`,
+  b_place: `ભાઈ/બહેન ${n} - ભાઈ હાલ (place)`,
+  b_work: `ભાઈ/બહેન ${n} - ભાઈનો અભ્યાસ / વ્યવસાય (e.g. STUDENT)`,
+  s_name: `ભાઈ/બહેન ${n} - બહેનનું પૂરું નામ (unmarried)`,
+  s_place: `ભાઈ/બહેન ${n} - બહેન હાલ (place)`,
+  s_work: `ભાઈ/બહેન ${n} - બહેનનો અભ્યાસ / વ્યવસાય`,
+});
+
+const SIB_TYPES = {      // choice text -> [relation in JSON, field group]
+  'બહેન - બનેવી': ['bahen-banevi', 'bb'],
+  'ભાઈ - ભાભી': ['bhai-bhabhi', 'bh'],
+  'મોટા ભાઈ - ભાભી': ['mota-bhai-bhabhi', 'bh'],
+  'ભાઈ (અપરિણીત)': ['bhai', 'b'],
+  'બહેન (અપરિણીત)': ['bahen', 's'],
+};
+const SIB_NONE = 'કોઈ નહીં / વધુ નથી (None)';
 
 const CHOICES = {
   gender: { 'છોકરો (Boy)': 'boy', 'છોકરી (Girl)': 'girl' },
   marital: { 'Single': 'Single', 'Divorced': 'Divorced', 'Widow': 'Widow', 'Widower': 'Widower' },
   privacy: { 'Show clearly': 'clear', 'Blur': 'blur', 'Hide (no candidate photos)': 'hide' },
-  rel: {
-    'બહેન - બનેવી (Sister & brother-in-law)': 'bahen-banevi',
-    'ભાઈ - ભાભી (Brother & sister-in-law)': 'bhai-bhabhi',
-    'મોટા ભાઈ - ભાભી (Elder brother & sister-in-law)': 'mota-bhai-bhabhi',
-    'ભાઈ (Brother)': 'bhai',
-    'બહેન (Sister)': 'bahen',
-  },
   work_style: { 'Business (logo + name + description)': 'business', 'List of points': 'bullets' },
 };
 
-// ---------------------------------------------------------------- upload questions (add manually)
-// role -> [title, max files, section]
+// ---------------------------------------------------------------- upload questions (add by hand)
+// role -> [title, max files (Forms allows 1/5/10), section, required]
 const UPLOADS = {
-  hero:    ['ફોટો: ઉમેદવાર - મુખ્ય ફોટો (Main photo)', 1, 'ઉમેદવાર'],
-  gallery: ['ફોટા: ઉમેદવાર - ગેલેરી, 6 to 10 photos (Gallery)', 10, 'ઉમેદવાર'],
-  dadi:    ['ફોટો: દાદી', 1, 'દાદા-દાદી / નાના-નાની'],
-  dada:    ['ફોટો: દાદા', 1, 'દાદા-દાદી / નાના-નાની'],
-  nani:    ['ફોટો: નાની', 1, 'દાદા-દાદી / નાના-નાની'],
-  nana:    ['ફોટો: નાના', 1, 'દાદા-દાદી / નાના-નાની'],
-  mata:    ['ફોટો: માતા', 1, 'માતા-પિતા'],
-  pita:    ['ફોટો: પિતા', 1, 'માતા-પિતા'],
-  s1:      ['ફોટો: ભાઈ/બહેન 1 (1 joint photo or 2 photos)', 2, 'ભાઈ/બહેન'],
-  s2:      ['ફોટો: ભાઈ/બહેન 2 (1 joint photo or 2 photos)', 2, 'ભાઈ/બહેન'],
-  edu:     ['ફોટો: અભ્યાસ કાર્ડ માટે (optional)', 1, 'અભ્યાસ / વ્યવસાય'],
-  work:    ['ફોટો: વ્યવસાય કાર્ડ માટે (optional)', 1, 'અભ્યાસ / વ્યવસાય'],
-  logo:    ['લોગો: કંપની / બિઝનેસ (PNG, optional)', 1, 'અભ્યાસ / વ્યવસાય'],
+  hero:      ['ફોટો: ઉમેદવાર - મુખ્ય ફોટો (Main photo)', 1, 'first section (ઉમેદવાર)', true],
+  gallery:   ['ફોટા: ઉમેદવાર - ગેલેરી, 6 to 10 photos (Gallery)', 10, 'first section (ઉમેદવાર)'],
+  dadi:      ['ફોટો: દાદી', 1, SEC.dd],
+  dada:      ['ફોટો: દાદા', 1, SEC.dd],
+  dd_couple: ['ફોટો: દાદા-દાદી સાથે (couple photo, optional)', 1, SEC.dd],
+  nani:      ['ફોટો: નાની', 1, SEC.nn],
+  nana:      ['ફોટો: નાના', 1, SEC.nn],
+  nn_couple: ['ફોટો: નાના-નાની સાથે (couple photo, optional)', 1, SEC.nn],
+  mata:      ['ફોટો: માતા', 1, SEC.par],
+  pita:      ['ફોટો: પિતા', 1, SEC.par],
+  par_couple:['ફોટો: માતા-પિતા સાથે (couple photo, optional)', 1, SEC.par],
+  s1:        ['ફોટો: ભાઈ/બહેન 1 (1 couple photo or 2 separate)', 5, SEC.s1ph + ' - at the TOP, above "ભાઈ/બહેન 2 - સંબંધ"'],
+  s2:        ['ફોટો: ભાઈ/બહેન 2 (1 couple photo or 2 separate)', 5, SEC.s2ph],
+  edu:       ['ફોટો: અભ્યાસ કાર્ડ માટે (optional)', 1, SEC.edu],
+  work:      ['ફોટો: વ્યવસાય કાર્ડ માટે (optional)', 1, SEC.work],
+  logo:      ['લોગો: કંપની / બિઝનેસ (PNG, optional)', 1, SEC.work],
 };
+
+const COUPLE_HELP = 'ફોટા: અલગ અલગ (2 ફોટા) અથવા એક સાથેનો couple ફોટો — બંનેમાંથી એક. ' +
+                    'Couple ફોટો આડો (landscape) હોય તો વિડિયોમાં પહોળી ફ્રેમ આવશે.';
 
 // ================================================================ create form
 function createGujPremiumForm() {
@@ -117,48 +155,67 @@ function createGujPremiumForm() {
     '• ફોટા ઓરિજિનલ મોકલો (WhatsApp forward નહીં), ફોટા પર કોઈ લખાણ ન હોવું જોઈએ.\n' +
     '• જે વિગત ન હોય તે ખાલી રાખો — તે કાર્ડ વિડિયોમાં નહીં આવે.');
 
-  const text = (k, req) => f.addTextItem().setTitle(Q[k]).setRequired(!!req);
-  const para = (k, req) => f.addParagraphTextItem().setTitle(Q[k]).setRequired(!!req);
-  const mc = (k, ch, req) => f.addMultipleChoiceItem().setTitle(Q[k])
+  const text = (t, req) => f.addTextItem().setTitle(t).setRequired(!!req);
+  const para = (t, req) => f.addParagraphTextItem().setTitle(t).setRequired(!!req);
+  const mc = (t, ch, req) => f.addMultipleChoiceItem().setTitle(t)
       .setChoiceValues(Object.keys(CHOICES[ch])).setRequired(!!req);
-  const list = (k, vals, req) => f.addListItem().setTitle(Q[k]).setChoiceValues(vals).setRequired(!!req);
-  const section = (t, d) => f.addPageBreakItem().setTitle(t).setHelpText(d || '');
+  const list = (t, vals, req) => f.addListItem().setTitle(t).setChoiceValues(vals).setRequired(!!req);
+  const page = (t, help) => f.addPageBreakItem().setTitle(t).setHelpText(help || '');
 
-  // Section 1: candidate
-  mc('gender', 'gender', true);
-  text('name', true);
-  text('first_name', true);
-  text('native_village', true);
-  text('city', true);
-  f.addDateItem().setTitle(Q.dob).setRequired(true);
-  mc('marital', 'marital', true);
-  list('height_ft', ['4', '5', '6', '7'], true);
-  list('height_in', ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'], true);
-  text('sect', true);
-  text('hobbies');
-  text('profile_url');
-  mc('privacy', 'privacy', true);
+  // 1. candidate (first section)
+  mc(Q.gender, 'gender', true);
+  text(Q.name, true);
+  text(Q.first_name, true);
+  text(Q.native_village, true);
+  text(Q.city, true);
+  const years = [];
+  for (let y = new Date().getFullYear() - 18; y >= 1965; y--) years.push(String(y));
+  list(Q.birth_year, years, true);
+  mc(Q.marital, 'marital', true);
+  list(Q.height_ft, ['4', '5', '6', '7'], true);
+  list(Q.height_in, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'], true);
+  text(Q.sect, true);
+  text(Q.hobbies);
+  text(Q.profile_url);
+  mc(Q.privacy, 'privacy', true);
 
-  section('દાદા-દાદી / નાના-નાની', 'ફોટા અલગ અલગ (દાદી, દાદા) અથવા એક સાથે - બંને ચાલશે.');
-  text('dd_name'); text('dd_village');
-  text('nn_name'); text('nn_village');
+  // 2-4. family
+  page(SEC.dd, COUPLE_HELP);
+  text(Q.dd_name); text(Q.dd_village);
+  page(SEC.nn, COUPLE_HELP);
+  text(Q.nn_name); text(Q.nn_village);
+  page(SEC.par, COUPLE_HELP);
+  text(Q.par_name); text(Q.par_village); text(Q.par_city);
+  text(Q.mother_name); para(Q.mother_occ);
+  text(Q.father_name); para(Q.father_occ);
 
-  section('માતા-પિતા');
-  text('par_name'); text('par_village'); text('par_city');
-  text('mother_name'); para('mother_occ');
-  text('father_name'); para('father_occ');
+  // 5. siblings with branching
+  page(SEC.s1, 'સંબંધ પસંદ કરો — પછી તે મુજબની વિગત પૂછાશે.');
+  const s1q = f.addMultipleChoiceItem().setTitle(SQ(1).type).setRequired(true);
+  const p1 = sibPages_(f, 1, page, text);         // {bb, bh, b, s, ph} page breaks
+  const s2q = f.addMultipleChoiceItem().setTitle(SQ(2).type).setRequired(true);  // sits in s1 photo section
+  const p2 = sibPages_(f, 2, page, text);
 
-  section('ભાઈ/બહેન', 'Sibling ન હોય તો ખાલી રાખો.');
-  mc('s1_rel', 'rel'); text('s1_name'); text('s1_place'); para('s1_details');
-  mc('s2_rel', 'rel'); text('s2_name'); text('s2_place'); para('s2_details');
+  // 6-8. education, work, income/property
+  const pEdu = page(SEC.edu);
+  text(Q.edu1_degree); text(Q.edu1_inst); text(Q.edu2_degree); text(Q.edu2_inst);
+  page(SEC.work);
+  mc(Q.work_style, 'work_style');
+  text(Q.work_label); text(Q.work_company); text(Q.work_desc); para(Q.work_bullets);
+  page(SEC.prop, 'Income / Property card માટે. ન હોય તો ખાલી રાખો.');
+  text(Q.income); para(Q.property);
 
-  section('અભ્યાસ / વ્યવસાય');
-  text('edu1_degree'); text('edu1_inst'); text('edu2_degree'); text('edu2_inst');
-  mc('work_style', 'work_style');
-  text('work_label'); text('work_company'); text('work_desc'); para('work_bullets');
-  para('property');
+  // branching choices (set after all pages exist)
+  const choices = (q, p) => Object.keys(SIB_TYPES).map(k => q.createChoice(k, p[SIB_TYPES[k][1]]))
+      .concat([q.createChoice(SIB_NONE, pEdu)]);
+  s1q.setChoices(choices(s1q, p1));
+  s2q.setChoices(choices(s2q, p2));
+  // after each relation section, jump to that sibling's photo section
+  [p1, p2].forEach(p => { p.bh.setGoToPage(p.ph); p.b.setGoToPage(p.ph); p.s.setGoToPage(p.ph); });
+  // (bb -> next page is bh: its break jumps to ph; s -> ph is next linearly)
+  // after sibling-2 photos the form continues linearly to Education.
 
-  const ss = SpreadsheetApp.create(FORM_TITLE + ' (Responses)');
+  const ss = SpreadsheetApp.create(FORM_TITLE + ' v2 (Responses)');
   f.setDestination(FormApp.DestinationType.SPREADSHEET, ss.getId());
   PropertiesService.getScriptProperties().setProperty('SHEET_ID', ss.getId());
   ScriptApp.newTrigger('onGpvSubmit').forSpreadsheet(ss).onFormSubmit().create();
@@ -169,25 +226,39 @@ function createGujPremiumForm() {
   listUploadQuestions();
 }
 
+/** Creates the 4 relation sections + photo section for sibling n. Returns their page breaks.
+ *  PageBreakItem.setGoToPage(x) on a break = where to go after finishing the section BEFORE it. */
+function sibPages_(f, n, page, text) {
+  const q = SQ(n);
+  const t = k => (n === 1 ? SEC['s1' + k] : SEC['s2' + k]);
+  const bb = page(t('bb'));
+  text(q.bb_sis); text(q.bb_bil); text(q.bb_place); text(q.bb_sis_work); text(q.bb_bil_work);
+  const bh = page(t('bh'));            // its goTo -> photos  (= exit of the bb section)
+  text(q.bh_bro); text(q.bh_sil); text(q.bh_place); text(q.bh_bro_work); text(q.bh_sil_work);
+  const b = page(t('b'));              // exit of bh section
+  text(q.b_name); text(q.b_place); text(q.b_work);
+  const s = page(t('s'));              // exit of b section
+  text(q.s_name); text(q.s_place); text(q.s_work);
+  const ph = page(t('ph'), 'ફોટો: 1 couple ફોટો અથવા 2 અલગ ફોટા.');   // s section flows here linearly
+  return { bb: bb, bh: bh, b: b, s: s, ph: ph };
+}
+
 function listUploadQuestions() {
-  Logger.log('Add these "File upload" questions in the form editor (exact titles):');
+  Logger.log('Add these "File upload" questions (exact titles, at the END of the section named):');
   Object.keys(UPLOADS).forEach(k => {
-    const [t, n, s] = UPLOADS[k];
-    Logger.log(`  [${s}]  ${t}   (max files: ${n}${k === 'hero' ? ', required' : ''})`);
+    const [t, n, s, req] = UPLOADS[k];
+    Logger.log(`  [${s}]  ${t}   (max files: ${n}${req ? ', required' : ''})`);
   });
 }
 
 // ================================================================ submission -> JSON
-function onGpvSubmit(e) {
-  const sh = e.range.getSheet();
-  buildRow_(sh, e.range.getRow());
-}
+function onGpvSubmit(e) { buildRow_(e.range.getSheet(), e.range.getRow()); }
 
 function rebuildSelectedRow() {
   const sh = sheet_();
-  const row = SpreadsheetApp.getActiveRange() ? SpreadsheetApp.getActiveRange().getRow() : sh.getLastRow();
-  if (row < 2) throw new Error('Select a cell in a response row first.');
-  buildRow_(sh, row);
+  const r = SpreadsheetApp.getActiveRange() ? SpreadsheetApp.getActiveRange().getRow() : sh.getLastRow();
+  if (r < 2) throw new Error('Select a cell in a response row first.');
+  buildRow_(sh, r);
 }
 
 function rebuildAllRows() {
@@ -204,61 +275,67 @@ function sheet_() {
 function buildRow_(sh, row) {
   const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   const vals = sh.getRange(row, 1, 1, headers.length).getValues()[0];
-  const byTitle = {};
-  headers.forEach((h, i) => byTitle[h.trim()] = vals[i]);
-  const get = k => String(byTitle[Q[k]] == null ? '' : byTitle[Q[k]]).trim();
-  const lines = k => get(k).split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  const by = {};
+  headers.forEach((h, i) => by[h.trim()] = vals[i]);
+  const raw = t => String(by[t] == null ? '' : by[t]).trim();
+  const get = k => raw(Q[k]);
+  const linesOf = s => s.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  const lines = k => linesOf(get(k));
   const pick = (k, ch) => CHOICES[ch][get(k)] || '';
+  const firstWord = s => s.split(/\s+/)[0] || '';
 
-  const first = get('first_name') || get('name').split(/\s+/)[0];
+  const first = get('first_name') || firstWord(get('name'));
   const m = get('profile_url').match(/ProfileID=(\d+)/i);
   const id = m ? m[1] : 'gpv-' + row;
 
-  // folder for this profile
   const root = folder_(DriveApp.getRootFolder(), DRIVE_ROOT);
   const pf = folder_(root, id + '_' + first);
-  const photosDir = folder_(pf, 'photos');
-  const up = (role, idx) => {
-    const t = UPLOADS[role][0];
-    const ids = String(byTitle[t] || '').split(',').map(s => (s.match(/[-\w]{25,}/) || [])[0]).filter(Boolean);
-    return ids.map((fid, i) => copy_(fid, photosDir, idx ? idx(i) : (ids.length > 1 ? role + '_' + (i + 1) : role)));
+  const dir = folder_(pf, 'photos');
+  const up = (role, nameFn, max) => {
+    const ids = raw(UPLOADS[role][0]).split(',').map(s => (s.match(/[-\w]{25,}/) || [])[0])
+        .filter(Boolean).slice(0, max || 10);
+    return ids.map((fid, i) => copy_(fid, dir, nameFn ? nameFn(i) : (ids.length > 1 ? `${role}_${i + 1}` : role)));
   };
 
-  const p = { version: 1, id: id, theme: pick('gender', 'gender') || 'boy', lang: 'gu',
+  const p = { version: 2, id: id, theme: pick('gender', 'gender') || 'boy', lang: 'gu',
               privacy: pick('privacy', 'privacy') || 'clear',
               name: get('name'), first_name: first,
               native_village: get('native_village'), city: get('city') };
-  const dob = byTitle[Q.dob];
-  if (dob instanceof Date) { p.dob = Utilities.formatDate(dob, 'Asia/Kolkata', 'yyyy-MM-dd'); p.birth_year = dob.getFullYear(); }
-  else if (get('dob')) { p.dob = get('dob'); p.birth_year = Number((get('dob').match(/(19|20)\d\d/) || [''])[0]) || undefined; }
+  const yr = Number((get('birth_year').match(/(19|20)\d\d/) || [''])[0]);
+  if (yr) p.birth_year = yr;
   p.marital_status = pick('marital', 'marital') || get('marital');
   if (get('height_ft')) p.height = `${get('height_ft')}'${get('height_in') || 0}"`;
   if (get('sect')) p.sect = get('sect');
 
-  const hero = up('hero');
-  const gallery = up('gallery', i => 'g' + (i + 1));
   p.photos = {};
+  const hero = up('hero'), gallery = up('gallery', i => 'g' + (i + 1));
   if (hero.length) p.photos.hero = hero[0];
   if (gallery.length) p.photos.gallery = gallery;
 
-  const pair = (nameK, villK, a, b) => {
+  // couple photo wins over separate photos (renderer picks the frame from its orientation)
+  const famPhotos = (couple, a, b) => {
+    const c = up(couple);
+    return c.length ? c.slice(0, 1) : up(a).concat(up(b));
+  };
+  const pair = (nameK, villK, couple, a, b) => {
     if (!get(nameK)) return null;
-    const ph = up(a).concat(up(b));
     const o = { display_name: get(nameK) };
     if (get(villK)) o.village = get(villK);
+    const ph = famPhotos(couple, a, b);
     if (ph.length) o.photos = ph;
     return o;
   };
-  const dd = pair('dd_name', 'dd_village', 'dadi', 'dada'); if (dd) p.dada_dadi = dd;
-  const nn = pair('nn_name', 'nn_village', 'nani', 'nana'); if (nn) p.nana_nani = nn;
+  const dd = pair('dd_name', 'dd_village', 'dd_couple', 'dadi', 'dada'); if (dd) p.dada_dadi = dd;
+  const nn = pair('nn_name', 'nn_village', 'nn_couple', 'nani', 'nana'); if (nn) p.nana_nani = nn;
 
-  const mata = up('mata'), pita = up('pita');
+  const mata = up('mata'), pita = up('pita'), parC = up('par_couple');
   if (get('par_name')) {
     p.parents = { display_name: get('par_name') };
     if (get('par_village')) p.parents.village = get('par_village');
     if (get('par_city')) p.parents.city = get('par_city');
     if (p.sect) p.parents.sect = p.sect;
-    const ph = mata.concat(pita); if (ph.length) p.parents.photos = ph;
+    const ph = parC.length ? parC.slice(0, 1) : mata.concat(pita);
+    if (ph.length) p.parents.photos = ph;
   }
   if (get('mother_name') || lines('mother_occ').length) {
     p.mother = { name: get('mother_name'), occupation: lines('mother_occ') };
@@ -269,23 +346,36 @@ function buildRow_(sh, row) {
     if (pita.length) p.father.photo = pita[0];
   }
 
+  // siblings
   p.siblings = [];
-  [['s1_rel', 's1_name', 's1_place', 's1_details', 's1'], ['s2_rel', 's2_name', 's2_place', 's2_details', 's2']]
-    .forEach(([r, n, pl, d, role]) => {
-      if (!get(n)) return;
-      const s = { relation: pick(r, 'rel') || 'bhai', display_name: get(n) };
-      if (get(pl)) s.place = get(pl);
-      const ph = up(role); if (ph.length) s.photos = ph;
-      s.details = lines(d).map(l => {
-        const i = l.search(/[:：]/);
-        return i > 0 ? { who: l.slice(0, i).trim(), text: l.slice(i + 1).trim() } : { who: '', text: l };
-      });
-      p.siblings.push(s);
-    });
+  [1, 2].forEach(n => {
+    const q = SQ(n), t = raw(q.type);
+    if (!SIB_TYPES[t]) return;
+    const [relation, g] = SIB_TYPES[t];
+    const r = k => raw(q[k]);
+    let s;
+    if (g === 'bb' && (r('bb_sis') || r('bb_bil'))) {
+      s = { relation, display_name: [r('bb_sis'), r('bb_bil')].filter(Boolean).join(' '), place: r('bb_place'),
+            details: [[r('bb_sis'), r('bb_sis_work')], [firstWord(r('bb_bil')), r('bb_bil_work')]] };
+    } else if (g === 'bh' && (r('bh_bro') || r('bh_sil'))) {
+      s = { relation, display_name: [r('bh_sil'), r('bh_bro')].filter(Boolean).join(' '), place: r('bh_place'),
+            details: [[firstWord(r('bh_bro')), r('bh_bro_work')], [r('bh_sil'), r('bh_sil_work')]] };
+    } else if (g === 'b' && r('b_name')) {
+      s = { relation, display_name: r('b_name'), place: r('b_place'), details: [['', r('b_work')]] };
+    } else if (g === 's' && r('s_name')) {
+      s = { relation, display_name: r('s_name'), place: r('s_place'), details: [['', r('s_work')]] };
+    }
+    if (!s) return;
+    s.details = s.details.filter(d => d[1]).map(d => ({ who: d[0], text: d[1] }));
+    if (!s.place) delete s.place;
+    const ph = up('s' + n, null, 2);   // card shows max 2 photos
+    if (ph.length) s.photos = ph;
+    p.siblings.push(s);
+  });
   if (!p.siblings.length) delete p.siblings;
 
-  const edu = [];
-  const eduPh = up('edu');
+  // education
+  const edu = [], eduPh = up('edu');
   [['edu1_degree', 'edu1_inst'], ['edu2_degree', 'edu2_inst']].forEach(([dg, ins], i) => {
     if (!get(dg)) return;
     const o = { degree: get(dg) };
@@ -295,6 +385,7 @@ function buildRow_(sh, row) {
   });
   if (edu.length) p.education = edu;
 
+  // work
   const style = pick('work_style', 'work_style') || (get('work_company') ? 'business' : 'bullets');
   const workPh = up('work'), logo = up('logo');
   if (style === 'business' && (get('work_company') || get('work_desc'))) {
@@ -309,15 +400,21 @@ function buildRow_(sh, row) {
     if (get('work_label')) p.work.label = get('work_label');
     if (workPh.length) p.work.photo = workPh[0];
   }
-  if (lines('property').length) p.property = lines('property');
+
+  // income / property
+  const prop = [];
+  if (get('income')) prop.push('Income: ' + get('income'));
+  lines('property').forEach(l => prop.push(l));
+  if (prop.length) p.property = prop;
+
   const hob = get('hobbies').split(/[,\n]/).map(s => s.trim()).filter(Boolean);
   if (hob.length) p.hobbies = hob;
   if (get('profile_url')) p.profile_url = get('profile_url');
 
   const json = JSON.stringify(p, null, 2);
   writeFile_(pf, 'profile.json', json);
-  setCol_(sh, headers, row, 'JSON', json);
-  setCol_(sh, sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String), row, 'Folder', pf.getUrl());
+  setCol_(sh, row, 'JSON', json);
+  setCol_(sh, row, 'Folder', pf.getUrl());
 }
 
 // ---------------------------------------------------------------- helpers
@@ -342,7 +439,8 @@ function writeFile_(dir, name, content) {
   dir.createFile(name, content, MimeType.PLAIN_TEXT);
 }
 
-function setCol_(sh, headers, row, title, value) {
+function setCol_(sh, row, title, value) {
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   let c = headers.indexOf(title) + 1;
   if (!c) { c = sh.getLastColumn() + 1; sh.getRange(1, c).setValue(title); }
   sh.getRange(row, c).setValue(value);
