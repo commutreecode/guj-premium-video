@@ -1,6 +1,8 @@
 """Static cards (1200x1500 RGB). Coordinates/baselines come from the PSD templates."""
 from __future__ import annotations
 
+import re
+
 from PIL import Image, ImageDraw
 
 from . import imgs
@@ -165,31 +167,31 @@ def family_pair(ctx: Ctx, kind: str, d_: dict) -> Image.Image:
     return im
 
 
-def single_parent(ctx: Ctx, rel: str, d_: dict) -> Image.Image:
+def single_parent(ctx: Ctx, rel: str, d_: dict, fallback_photo=None) -> Image.Image:
     im = canvas(ctx)
     d = ImageDraw.Draw(im)
     title1(d, TITLE_FAMILY)
     label = "માતા" if rel == "mother" else "પિતા"
     title2(d, ctx, f"{label}: {d_.get('name', '')}".strip(": "), 126.7, 480)
-    ph = ctx.photo(d_.get("photo"))
+    # own photo, else the parents' couple photo (wide frame), else a text panel
+    ph = ctx.photo(d_.get("photo")) or ctx.photo(fallback_photo)
     if ph:
-        imgs.paste_photo(im, ph, (359, 559, 841, 1172), 88)
+        box = (220, 559, 980, 1172) if _aspect(ph) >= 0.9 else (359, 559, 841, 1172)
+        imgs.paste_photo(im, ph, box, 88)
     occ = d_.get("occupation") or []
     if isinstance(occ, str):
         occ = [occ]
-    if not ph:  # no own photo (e.g. only a couple photo was given): text-only panel instead of an empty frame
+    if not ph:
         imgs.fill_rrect(im, (92, 600, 1108, 1180), 88, BROWN)
-        st = Style(gu="akhand_xb", lat="poppins_sb", size=96, color=WHITE)
+        st = Style(gu="akhand_xb", lat="poppins_sb", size=80, color=WHITE)
         lines = []
         for o in occ:
             ls, s2 = wrap_fit(o, st, 900, 2, 0.6)
             lines += [(ln, s2) for ln in ls]
-        if lines:
-            k = min(1.0, 4 / max(4, len(lines)))
-            pitch = 120 * k
-            first = 890 - pitch * (len(lines) - 1) / 2 + 34 * k
-            for i, (ln, s2) in enumerate(lines):
-                draw_line(d, ln, fit(ln, s2.scaled(k), 900), 600, first + i * pitch)
+        pitch = 100
+        first = 890 - pitch * (len(lines) - 1) / 2 + 28
+        for i, (ln, s2) in enumerate(lines):
+            draw_line(d, ln, fit(ln, s2, 900), 600, first + i * pitch)
         return im
     if len(occ) <= 1:
         band(im, 1216, 1457, BROWN)
@@ -197,12 +199,12 @@ def single_parent(ctx: Ctx, rel: str, d_: dict) -> Image.Image:
             st = Style(gu="akhand_xb", lat="poppins_sb", size=104.2, lat_scale=1.0, color=WHITE)
             if measure(occ[0], st.scaled(0.75)) <= 1120:
                 draw_line(d, occ[0], fit(occ[0], st, 1120), 600, 1377)
-            else:  # long single line: wrap into 2 balanced lines instead of shrinking it unreadably
-                lines, st2 = wrap_fit(occ[0], st.scaled(0.68), 1120, 2, 0.6)
+            else:  # long single line: 2 balanced lines
+                lines, st2 = wrap_fit(occ[0], st.scaled(0.62), 1100, 2, 0.6)
                 pitch = st2.size * 1.25
                 first = (1216 + 1457) / 2 - pitch * (len(lines) - 1) / 2 + st2.size * 0.36
                 for i, ln in enumerate(lines):
-                    draw_line(d, ln, fit(ln, st2, 1120), 600, first + i * pitch)
+                    draw_line(d, ln, fit(ln, st2, 1100), 600, first + i * pitch)
     else:
         band(im, 1161, 1471, BROWN)
         sizes = [62.5] + [70.8] * (len(occ) - 1)
@@ -216,6 +218,8 @@ def single_parent(ctx: Ctx, rel: str, d_: dict) -> Image.Image:
 
 
 def sibling(ctx: Ctx, s: dict) -> Image.Image:
+    if not [x for x in s.get("photos", []) if x]:
+        return sibling_no_photo(ctx, s)
     im = canvas(ctx)
     d = ImageDraw.Draw(im)
     title1(d, SIBLING_TITLES.get(s.get("relation", ""), s.get("title", s.get("relation", ""))))
@@ -233,12 +237,8 @@ def sibling(ctx: Ctx, s: dict) -> Image.Image:
         boxes = [(357, 490, 844, 1109)]
     for ph, box in zip(photos, boxes):
         imgs.paste_photo(im, ph, box, 88)
-    if not photos:  # no photo: details in a rounded panel in the middle instead of an empty frame
-        imgs.fill_rrect(im, (92, 540, 1108, 1180), 88, BROWN)
-        y_top, y_bot = 540, 1180
-    else:
-        band(im, 1122, H, BROWN)
-        y_top, y_bot = 1122, H
+    band(im, 1122, H, BROWN)
+    y_top, y_bot = 1122, H
     # details block
     lab = Style(gu="akhand_xb", lat="poppins_sb", size=83.3, lat_scale=0.72, color=WHITE)
     lines = []  # (text, style, pitch)
@@ -254,9 +254,37 @@ def sibling(ctx: Ctx, s: dict) -> Image.Image:
             body = Style(gu="akhand_xb", lat="poppins_sb", size=83.3, lat_scale=0.70, color=WHITE)
             for ln in wrap_balanced(txt, body, 1120):
                 lines.append((ln, body, 66))
-    if not photos:  # bigger text inside the panel
-        lines = [(t, st.scaled(1.35), pt * 1.35) for t, st, pt in lines]
-    _draw_block(d, lines, y_top, y_bot, max_w=1130 if photos else 920)
+    _draw_block(d, lines, y_top, y_bot)
+    return im
+
+
+def sibling_no_photo(ctx: Ctx, s: dict) -> Image.Image:
+    """Girl PSD "BAHEN 1 DETAILS": title, then relation + name large in the centre, details in the bottom band."""
+    im = canvas(ctx)
+    d = ImageDraw.Draw(im)
+    title1(d, TITLE_FAMILY, 317)
+    rel = SIBLING_TITLES.get(s.get("relation", ""), s.get("relation", ""))
+    words = s.get("display_name", "").split()
+    lines = [rel + ":"] + ([words[0], " ".join(words[1:])] if len(words) > 1 else words)
+    st = Style(gu="akhand_xb", lat="poppins_sb", size=179.2, color=ctx.accent)
+    k = min(1.0, 3 / max(3, len(lines)))
+    for i, ln in enumerate([x for x in lines if x]):
+        draw_line(d, ln, fit(ln, st.scaled(k), 1100, 0.5), 600, 521 + i * 254 * k)
+    band(im, 1181, 1473, BROWN)
+    det = [f"{x['who']}: {x['text']}" if x.get("who") else x.get("text", "") for x in s.get("details", [])]
+    det = [x for x in det if x]
+    out = []
+    if len(det) == 1:
+        ls, st2 = wrap_fit(det[0], Style(gu="akhand_xb", lat="poppins_sb", size=104.2, color=WHITE), 1100, 2, 0.6)
+        out = [(ln, st2) for ln in ls]
+    else:
+        for x in det[:3]:
+            out.append((x, fit(x, Style(gu="akhand_xb", lat="poppins_sb", size=78, color=WHITE), 1100, 0.6)))
+    if out:
+        pitch = max(st2.size for _, st2 in out) * 1.22
+        first = (1181 + 1473) / 2 - pitch * (len(out) - 1) / 2 + out[0][1].size * 0.36
+        for i, (ln, st2) in enumerate(out):
+            draw_line(d, ln, st2, 600, first + i * pitch)
     return im
 
 
@@ -275,15 +303,15 @@ def _draw_block(d, lines, y0, y1, x=600, align="center", max_w=1130):
         draw_line(d, txt, fit(txt, st.scaled(k), max_w), x, yb - p * 0.22, align)
 
 
-def education(ctx: Ctx, entries: list, first: str) -> Image.Image:
+def education(ctx: Ctx, entries: list, first: str, fallback_photo=None) -> Image.Image:
     im = canvas(ctx)
     d = ImageDraw.Draw(im)
     title1(d, f"{first} નો પરિચય")
     title2(d, ctx, "Education / અભ્યાસ", 129.2, 487, upper=True)
-    photo = next((ctx.photo(e["photo"]) for e in entries if e.get("photo")), None)
-    if photo:
-        imgs.paste_photo(im, photo, (47, 593, 379, 1297), 66, ctx.privacy)
-        xb, xt, maxw = 415, 495, 1150 - 495
+    photo = next((ctx.photo(e["photo"]) for e in entries if e.get("photo")), None) or ctx.photo(fallback_photo)
+    if photo:  # photo on the right, text column on the left
+        imgs.paste_photo(im, photo, (840, 582, 1174, 1284), 66, ctx.privacy)
+        xb, xt, maxw = 50, 130, 800 - 130
     else:
         xb, xt, maxw = 90, 170, 1110 - 170
     k = 1.0
@@ -350,18 +378,56 @@ def bullet_list(im, d, items, accent, shape, x_b, x_t, max_w, first_bl, size, bo
     return s
 
 
-def work(ctx: Ctx, w: dict, first: str) -> Image.Image:
+def split_job(items: list):
+    """-> (designation, company/area, extra lines). "X at Y" in one line is split."""
+    items = [i.strip() for i in items if i and i.strip()]
+    if not items:
+        return "", "", []
+    if len(items) == 1:
+        m = re.split(r"\s+at\s+", items[0], maxsplit=1, flags=re.I)
+        return (m[0], m[1], []) if len(m) == 2 else (items[0], "", [])
+    return items[0], items[1], items[2:]
+
+
+def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
     im = canvas(ctx)
     d = ImageDraw.Draw(im)
     title1(d, f"{first} નો પરિચય")
     title2(d, ctx, "જોબ / વ્યવસાય", 166.7, 509)
-    ph = ctx.photo(w.get("photo"))
+    ph = ctx.photo(w.get("photo")) or ctx.photo(fallback_photo)
     right = 790 if ph else 1150
     if ph:
         imgs.paste_photo(im, ph, (840, 582, 1174, 1284), 66, ctx.privacy)
     if w.get("style", "business") == "bullets":
-        bullet_list(im, d, w.get("bullets", []), ctx.accent, ctx.job_bullet, 50,
-                    100 if ctx.job_bullet == "dot" else 130, right, 680, 72, 1440, center_top=580)
+        items = w.get("bullets", [])
+        if len(items) > 3:  # a real list of roles: bullets
+            bullet_list(im, d, items, ctx.accent, ctx.job_bullet, 50,
+                        100 if ctx.job_bullet == "dot" else 130, right, 680, 72, 1440, center_top=580)
+            return im
+        desig, comp, extra = split_job(items)
+        x, align, maxw = (50, "left", right - 50) if ph else (600, "center", 1100)
+        blocks = []  # (lines, style, pitch)
+        if desig:
+            st0 = Style(gu="akhand_xb", lat="barlow_xb", size=96, color=BLACK)
+            if measure(desig, st0.scaled(0.8)) <= maxw:      # keep a designation on one line when it nearly fits
+                ls, st = [desig], fit(desig, st0, maxw, 0.8)
+            else:
+                ls, st = wrap_fit(desig, st0, maxw, 2, 0.6)
+            blocks.append((ls, st, 110))
+        if comp:
+            ls, st = wrap_fit(comp, Style(gu="akhand_xb", lat="barlow_b", size=66.7, color=ctx.accent), maxw, 3, 0.7)
+            blocks.append((ls, st, 85))
+        for e in extra:
+            ls, st = wrap_fit(e, Style(gu="akhand_xb", lat="barlow_m", size=58, color=BLACK), maxw, 2, 0.7)
+            blocks.append((ls, st, 74))
+        gaps = 40
+        height = sum(p * len(ls) for ls, _, p in blocks) + gaps * (len(blocks) - 1)
+        y = 933 - height / 2          # vertical centre of the photo (582..1284)
+        for bi, (ls, st, p) in enumerate(blocks):
+            for ln in ls:
+                y += p
+                draw_line(d, ln, st, x, y - p * 0.22, align)
+            y += gaps
         return im
     y_company, y_desc = 999, 1178
     if w.get("logo"):

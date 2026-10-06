@@ -18,7 +18,7 @@
 3. The user uploads the profile folder from Drive (`<id>_<name>.zip`: `profile.json` + `photos/`).
    Unzip it to `profiles/<name>/`.
 4. Stage 1: `python3 render.py profiles/<name>/profile.json` → give the user `out/<id>/preview.mp4` and
-   `out/<id>/tts_input.txt` (they generate the voice in Google AI Studio).
+   `out/<id>/tts_input.txt` (the team generates the voice in ElevenLabs).
 5. Stage 2: `python3 render.py profiles/<name>/profile.json --voice <voice.wav>` → `out/<id>/final.mp4`.
    Check `alignment.txt`; if a sentence is on the wrong card, edit `out/<id>/voice_spans.json` and re-run
    with `--spans`.

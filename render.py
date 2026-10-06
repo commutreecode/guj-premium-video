@@ -39,7 +39,7 @@ def read_narration(path: Path) -> dict:
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("profile", type=Path)
-    ap.add_argument("--voice", type=Path, help="narration audio from Google AI Studio (wav/mp3)")
+    ap.add_argument("--voice", type=Path, help="narration audio from ElevenLabs (mp3/wav)")
     ap.add_argument("--music", type=Path, default=MUSIC, help="background music (default: assets/music/bg_music.mp3)")
     ap.add_argument("--no-music", action="store_true", help="render without background music")
     ap.add_argument("--spans", type=Path, help="voice_spans.json: manual {card_id: [[start,end], ...]} "
@@ -108,17 +108,20 @@ def main(argv=None):
     tl, total = video.plan(scs, vo, p.get("hold"))
     if a.voice:
         placements = [(e["vo_start"], span_of[e["id"]]) for e in tl if e["id"] in span_of and e["vo_start"] is not None]
-    mix = audio.build_mix(total, placements, voice, a.music)
+    outro_s = 0.0 if a.no_outro else video.outro_duration()
+    full = total + outro_s
+    mix = audio.build_mix(full, placements, voice, a.music,
+                          outro=None if a.no_outro else (total, video.OUTRO))
     wav = out / ("final_audio.wav" if a.voice else "preview_audio.wav")
     audio.write_wav(wav, mix)
-    (out / "timeline.json").write_text(json.dumps({"total_main_s": round(total, 3), "scenes": tl},
+    (out / "timeline.json").write_text(json.dumps({"total_main_s": round(total, 3), "outro_s": round(outro_s, 3), "scenes": tl},
                                                   ensure_ascii=False, indent=1), encoding="utf-8")
 
     name = "final.mp4" if a.voice else "preview.mp4"
     preset, crf = ("veryfast", 23) if (a.fast or not a.voice) else ("medium", 20)
-    video.encode(video.frames(scs, tl, ctx, p), wav, total, out / name, outro=not a.no_outro,
+    video.encode(video.frames(scs, tl, ctx, p), wav, full, out / name, outro=not a.no_outro,
                  preset=preset, crf=crf, loudness=AUDIO["main_lufs"] if a.voice else None)
-    print(f"[ok] {out / name}  (main {total:.1f}s + outro)  in {time.time() - t0:.0f}s")
+    print(f"[ok] {out / name}  (main {total:.1f}s + outro {outro_s:.1f}s)  in {time.time() - t0:.0f}s")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 Pillow>=10.0        # must be built with RAQM (libraqm) for Gujarati shaping
 numpy>=1.24
+opencv-python-headless>=4.8   # face detection for automatic head-to-chest framing
 fonttools>=4.40
 pillow-heif>=0.16  # optional: iPhone HEIC photos

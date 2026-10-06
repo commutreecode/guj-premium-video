@@ -24,6 +24,14 @@ def build(p: dict, base: Path) -> tuple[list[Scene], cards.Ctx]:
     theme = p.get("theme", "boy")
     ctx = cards.Ctx(theme, base, p.get("privacy", "clear"))
     first = p.get("first_name") or p["name"].split()[0]
+    # photo fallbacks: education / job cards use candidate photos when none were given for them,
+    # single-parent cards use the parents' couple photo when a parent has no own photo
+    ph = p.get("photos") or {}
+    cand = [] if ctx.privacy == "hide" else (list(ph.get("gallery") or []) or ([ph["hero"]] if ph.get("hero") else []))
+    edu_fb = cand[0] if cand else None
+    work_fb = cand[1] if len(cand) > 1 else edu_fb
+    par_ph = (p.get("parents") or {}).get("photos") or []
+    couple = par_ph[0] if len(par_ph) == 1 else None
     out: list[Scene] = []
     for sec in p.get("sections", DEFAULT_ORDER):
         if sec == "intro":
@@ -33,16 +41,16 @@ def build(p: dict, base: Path) -> tuple[list[Scene], cards.Ctx]:
         elif sec in ("dada_dadi", "nana_nani", "parents") and p.get(sec):
             out.append(Scene(sec, "card", cards.family_pair(ctx, sec, p[sec]), scene_text(sec, p, p[sec])))
         elif sec in ("mother", "father") and p.get(sec):
-            out.append(Scene(sec, "card", cards.single_parent(ctx, sec, p[sec]), scene_text(sec, p, p[sec])))
+            out.append(Scene(sec, "card", cards.single_parent(ctx, sec, p[sec], couple), scene_text(sec, p, p[sec])))
         elif sec == "siblings":
             for i, s in enumerate(p.get("siblings", []), 1):
                 sid = f"sibling{i}"
                 out.append(Scene(sid, "card", cards.sibling(ctx, s), scene_text(sid, p, s)))
         elif sec == "education" and p.get("education"):
-            out.append(Scene("education", "card", cards.education(ctx, p["education"], first),
+            out.append(Scene("education", "card", cards.education(ctx, p["education"], first, edu_fb),
                              scene_text("education", p, p["education"])))
         elif sec == "work" and p.get("work"):
-            out.append(Scene("work", "card", cards.work(ctx, p["work"], first), scene_text("work", p, p["work"])))
+            out.append(Scene("work", "card", cards.work(ctx, p["work"], first, work_fb), scene_text("work", p, p["work"])))
         elif sec == "property" and p.get("property"):
             out.append(Scene("property", "card", cards.property_card(ctx, p["property"], first),
                              scene_text("property", p, p["property"])))

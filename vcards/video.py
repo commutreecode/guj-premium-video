@@ -38,10 +38,10 @@ def plan(scenes, vo: dict | None = None, holds: dict | None = None):
             else:
                 vlen = vo.get(sc.id, 0.0)
             if sc.id == "intro":
-                lead, mn = T["intro_lead"], T["min_intro"]
+                lead, mn, after = T["intro_lead"], T["min_intro"], T["intro_tail"]
             else:
-                lead, mn = T["lead"], T["min_card"]
-            dur = max(mn, lead + vlen + T["tail"] + hold_for(sc.id, holds)) if vlen else mn
+                lead, mn, after = T["lead"], T["min_card"], T["tail"] + hold_for(sc.id, holds)
+            dur = max(mn, lead + vlen + after) if vlen else mn
             tl.append(dict(id=sc.id, kind="card", start=t, dur=round(dur, 3),
                            vo_start=round(t + lead, 3) if vlen else None, vo_len=round(vlen, 3)))
         t += tl[-1]["dur"]
@@ -66,10 +66,11 @@ class Gallery:
         self.states = states or [("static", Image.new("RGB", (W, 128), "white"))]
 
     def _base(self, i):
+        """(zoom-ready image, zoom anchor) for gallery photo i; the anchor is the face/chest point."""
         if i not in self._cache:
             self._cache = {}
-            im = imgs.cover(self.photos[i], W, PHOTO_H, self.q)
-            self._cache[i] = imgs.apply_privacy(im, self.ctx.privacy)
+            im, anchor = imgs.cover_anchor(self.photos[i], W, PHOTO_H, self.q)
+            self._cache[i] = (imgs.apply_privacy(im, self.ctx.privacy), anchor)
         return self._cache[i]
 
     def _strip(self, st, u):
@@ -102,9 +103,9 @@ class Gallery:
         ph = (u - i * T["gallery_photo"]) / T["gallery_photo"]
         s = 1.0 + (T["zoom_end"] - 1.0) * ph
         q = self.q
-        cx, cy = W / 2, PHOTO_H / 2
+        base, (cx, cy) = self._base(i)          # zoom towards the face, not the photo centre
         data = (q / s, 0, q * (cx - cx / s), 0, q / s, q * (cy - cy / s))
-        photo = self._base(i).transform((W, PHOTO_H), Image.AFFINE, data, Image.BICUBIC)
+        photo = base.transform((W, PHOTO_H), Image.AFFINE, data, Image.BICUBIC)
         fr = imgs.background().convert("RGBA")
         fr.paste(photo, (0, PHOTO_Y0))
         fr = Image.alpha_composite(fr, self.overlay).convert("RGB")
@@ -169,22 +170,29 @@ def _blend(a, b, alpha):
     return (a.astype(np.float32) * (1 - alpha) + b.astype(np.float32) * alpha + 0.5).astype(np.uint8)
 
 
-def encode(frame_iter, audio_wav: Path, main_dur: float, out: Path, outro: bool = True,
+def outro_duration() -> float:
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
+                          str(OUTRO)], capture_output=True, text=True, check=True).stdout
+    return float(out.strip())
+
+
+def encode(frame_iter, audio_wav: Path, total_dur: float, out: Path, outro: bool = True,
            preset: str = "medium", crf: int = 20, loudness: float | None = None):
+    """Video: rendered frames (+ outro clip's picture). Audio: ONE mixed track for the whole length
+    (voice + music + outro voice), so the music continues under the outro."""
     fr = f"{FPS_NUM}/{FPS_DEN}"
     cmd = ["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
            "-framerate", fr, "-i", "pipe:0", "-i", str(audio_wav)]
     ln = f"loudnorm=I={loudness}:TP=-1.5:LRA=11," if loudness is not None else ""
-    a0 = (f"[1:a]{ln}aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,"
-          f"apad,atrim=0:{main_dur:.4f}[a0]")
+    a = (f"[1:a]{ln}aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,"
+         f"apad,atrim=0:{total_dur:.4f}[a]")
     if outro:
         cmd += ["-i", str(OUTRO)]
-        fc = (f"[0:v]setsar=1,format=yuv420p[v0];{a0};"
+        fc = (f"[0:v]setsar=1,format=yuv420p[v0];"
               f"[2:v]scale={W}:{H},setsar=1,fps={fr},format=yuv420p[v1];"
-              f"[2:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo[a1];"
-              f"[v0][a0][v1][a1]concat=n=2:v=1:a=1[v][a]")
+              f"[v0][v1]concat=n=2:v=1:a=0[v];{a}")
     else:
-        fc = f"[0:v]setsar=1,format=yuv420p[v];{a0.replace('[a0]', '[a]')}"
+        fc = f"[0:v]setsar=1,format=yuv420p[v];{a}"
     cmd += ["-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", preset,
             "-crf", str(crf), "-pix_fmt", "yuv420p", "-r", fr, "-c:a", "aac", "-b:a", "160k",
             "-movflags", "+faststart", str(out)]

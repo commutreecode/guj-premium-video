@@ -45,28 +45,38 @@ THEMES = {
 
 TIMING = {
     "dissolve": 1.0,        # card-to-card cross dissolve (s)
-    "lead": 0.6,            # card start -> narration start
-    "tail": 1.1,            # narration end -> next card start
+    "lead": 0.3,            # card start -> narration start
+    "tail": 1.4,            # narration end -> next card start
     "intro_lead": 0.2,
+    "intro_tail": 0.6,
     "min_card": 3.0,
     "min_intro": 2.6,
     "gallery_photo": 2.0,   # seconds per gallery photo (hard cuts)
     "zoom_end": 1.21,       # Ken Burns 1.00 -> 1.21, linear
     "ticker_px_s": 210,     # hobby ticker speed
     "subline_xfade": 0.4,
-    "chars_per_sec": 12.5,  # narration length estimate before the voice exists
-    "hold": 1.0,            # extra reading time after the narration, every card (s)
+    "chars_per_sec": 15.0,  # narration length estimate before the voice exists
+    "hold": 0.5,            # extra reading time after the narration, every card (s)
 }
 
 # extra reading time on top of TIMING["hold"] for text-heavy cards (s).
 # A profile can override per card with  "hold": {"hero": 4, ...}  in its JSON.
+# Total time after the voice on a card = tail + hold + extra. Matched to the original reference videos
+# (about 2.2 s on average, a bit more on text-heavy cards).
 HOLD_EXTRA = {
-    "hero": 3.0,
-    "parents": 2.5,
-    "father": 2.5,
-    "sibling": 3.0,      # applies to sibling1, sibling2, ...
-    "education": 2.5,
-    "work": 3.0,
+    "hero": 0.5,
+    "parents": 0.3,
+    "father": 0.3,
+    "sibling": 0.5,      # applies to sibling1, sibling2, ...
+    "education": 0.5,
+    "work": 0.5,
+}
+
+# Automatic photo framing (photos without "crop"/"focus" in the JSON): head to chest.
+FRAMING = {
+    "face_frac": 1 / 3.0,   # face height = 1/3 of the frame height  -> head to chest
+    "headroom": 0.55,       # space above the face, in face heights
+    "max_upscale": 2.2,     # never enlarge the source more than this (keeps photos sharp)
 }
 
 AUDIO = {

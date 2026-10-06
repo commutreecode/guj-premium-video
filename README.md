@@ -32,11 +32,11 @@ python3 render.py profiles/<name>/profile.json
 #    -> out/<id>/cards/*.png      check every card
 #    -> out/<id>/preview.mp4      silent, estimated timings, with outro
 #    -> out/<id>/narration.txt    review / edit the Gujarati narration here
-#    -> out/<id>/tts_input.txt    paste this into Google AI Studio
+#    -> out/<id>/tts_input.txt    paste this into ElevenLabs (Text to Speech)
 
-# 2. Google AI Studio -> Generate speech -> paste tts_input.txt -> download WAV
-#    (always use the same voice + style instruction; keep a clear pause between blocks)
-#    Voice: <TBD>   Style instruction: <TBD>
+# 2. ElevenLabs -> Text to Speech -> paste tts_input.txt (whole text in one go) -> download MP3/WAV
+#    (always the same voice, model and settings; keep the blank lines between blocks)
+#    Voice: <TBD>   Model: <TBD>   Settings: <TBD>
 
 # 3. merge
 python3 render.py profiles/<name>/profile.json --voice voice.wav
@@ -61,13 +61,13 @@ Options: `--spans FILE` (manual voice split), `--cards-only` (PNGs + narration o
 
 | Item | Rule |
 |---|---|
-| Card length | narration + 0.6 s before + 1.1 s after + reading time (min 3 s; intro min 2.6 s) |
-| Reading time | 1 s on every card; extra on text-heavy cards: hero +3, Mata-Pita +2.5, Pita +2.5, siblings +3, education +2.5, job +3 (`HOLD_EXTRA` in `config.py`; per profile: `"hold": {"hero": 6}`) |
+| Card length | narration + 0.3 s before + 1.9–2.4 s after (as in the original reference videos; min 3 s; intro min 2.6 s) |
+| Reading time | included above: 0.5 s on every card, +0.3–0.5 s on text-heavy cards (`HOLD_EXTRA` in `config.py`; per profile: `"hold": {"hero": 3}`) |
 | Card → card | 1.0 s cross-dissolve |
 | Gallery | photos below the header (y 150–1110), 2.0 s each, hard cuts, zoom 1.00 → 1.21 linear; no narration |
 | Gallery sub-line | rotates: hobbies (centred; scrolls if too long) → sect → year/status/height, all vertically centred |
-| Audio | voice levelled, background music ~24 dB under voice, main part normalised to −12 LUFS |
-| Outro | `assets/outro/ct_premium_end_slide.mp4` appended (has its own voice + music) |
+| Audio | voice levelled, background music ~24 dB under voice for the **whole video, outro included**; outro voice levelled to match; normalised to −12 LUFS |
+| Outro | `assets/outro/ct_premium_end_slide.mp4` (picture + its own voice; our music continues under it) |
 | Output | 1200×1500, 29.97 fps, H.264 yuv420p, AAC 44.1 kHz |
 
 All numbers live in `vcards/config.py`.
@@ -97,6 +97,10 @@ Every section is optional; missing sections are skipped.
 | `hobbies[]` | gallery ticker |
 | `hold` | optional per-card reading time override in seconds, e.g. `{"hero": 6, "sibling": 4}` |
 | `sections[]` | optional custom order / subset of: intro, hero, dada_dadi, nana_nani, parents, mother, father, siblings, education, work, property, gallery |
+
+**Automatic framing:** photos without `crop`/`focus` are framed **head to chest** using face detection
+(OpenCV DNN, `assets/models/`), also for couple and group photos; the gallery zoom moves towards the face.
+Low-resolution photos are never enlarged more than 2.2×, so very small photos stay a little wider.
 
 **Photo spec:** `"photos/x.jpg"` or `{"src": "photos/x.jpg", "focus": [fx, fy]}` or
 `{"src": …, "crop": [x0, y0, x1, y1]}` (fractions 0–1 of the source image).

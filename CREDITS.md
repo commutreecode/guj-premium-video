@@ -8,4 +8,6 @@ Fonts in `assets/fonts/`:
 - **Barlow / Barlow Condensed** © Jeremy Tribby — SIL Open Font License 1.1
 - **Poppins** © Indian Type Foundry — SIL Open Font License 1.1
 
+Face detection model (`assets/models/`): OpenCV DNN face detector (res10_300x300 SSD, from opencv/opencv_3rdparty), distributed with OpenCV under its license.
+
 Brand assets (`assets/brand`, `assets/bg`, `assets/outro`, `assets/music`) © CommuTree Technologies LLP.

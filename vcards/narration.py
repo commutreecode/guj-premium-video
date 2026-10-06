@@ -92,9 +92,9 @@ def estimate_seconds(text: str) -> float:
 def write_files(out_dir, profile_id: str, items):
     """items: list of (scene_id, text). Writes narration.txt (review) and tts_input.txt (paste)."""
     lines = [f"# CommuTree video narration - profile {profile_id}",
-             "# Review / edit the text below. Then paste tts_input.txt into Google AI Studio",
-             "# (Generate speech). Keep the block ORDER; leave a clear pause between blocks.",
-             "# Download the result as WAV and run:  python3 render.py <profile.json> --voice <file.wav>",
+             "# Review / edit the text below (keep the [NN id] labels). Then paste tts_input.txt into ElevenLabs",
+             "# Text to Speech in ONE go, same voice + settings every time. Keep the block ORDER and the blank lines.",
+             "# Download MP3 or WAV and run:  python3 render.py <profile.json> --voice <file>",
              ""]
     plain = []
     for i, (sid, txt) in enumerate(items, 1):

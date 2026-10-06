@@ -139,10 +139,21 @@ def spans_length(segs) -> float:
     return sum(b - a for a, b in segs) + SEG_GAP * (len(segs) - 1)
 
 
-def build_mix(total_s: float, placements, voice: np.ndarray | None, music_path: Path | None):
-    """placements: [(t_start_in_video, [(a_s, b_s), ...] segments of the voice)]. Returns stereo float32."""
+def build_mix(total_s: float, placements, voice: np.ndarray | None, music_path: Path | None,
+              outro: tuple | None = None):
+    """placements: [(t_start_in_video, [(a_s, b_s), ...] segments of the voice)].
+    outro: (start_s, path) -> the outro clip's own audio is levelled like our voice and mixed in there;
+    the background music then runs under the whole video, outro included. Returns stereo float32."""
     n = int(round(total_s * SR))
     mono = np.zeros(n, np.float32)
+    if outro:
+        t0, path = outro
+        oa = decode(path, SR, 1)
+        if len(oa):
+            oa = normalise_voice(oa)
+            i0 = int(t0 * SR)
+            i1 = min(n, i0 + len(oa))
+            mono[i0:i1] += oa[: i1 - i0]
     if voice is not None:
         v = normalise_voice(voice)
         for t, segs in placements:
