@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "id": "sample-girl",
+  "theme": "girl",
+  "lang": "gu",
+  "privacy": "clear",
+  "name": "નમૂના સુરેશ રમેશ શાહ",
+  "first_name": "નમૂના",
+  "native_village": "માંડવી",
+  "city": "ઘાટકોપર",
+  "birth_year": 1999,
+  "marital_status": "Single",
+  "height": "5'3\"",
+  "sect": "દેરાવાસી જૈન",
+  "photos": {
+    "hero": {"src": "photos/hero.jpg", "focus": [0.5, 0.3]},
+    "gallery": ["photos/g1.jpg", "photos/g2.jpg", "photos/g3.jpg"]
+  },
+  "dada_dadi": {"display_name": "દાદી નામ દાદા નામ શાહ", "village": "માંડવી",
+                "photos": ["photos/elder_f.jpg", "photos/elder_m.jpg"]},
+  "nana_nani": {"display_name": "નાની નામ નાના નામ મહેતા", "village": "ભુજ",
+                "photos": ["photos/elder_f.jpg"]},
+  "parents": {"display_name": "માતા નામ સુરેશ રમેશ શાહ", "village": "માંડવી", "city": "ઘાટકોપર",
+              "sect": "દેરાવાસી જૈન", "photos": ["photos/mother.jpg", "photos/father.jpg"]},
+  "mother": {"name": "માતાબેન", "photo": "photos/mother.jpg", "occupation": ["HouseWife"]},
+  "father": {"name": "સુરેશભાઈ", "photo": "photos/father.jpg",
+             "occupation": ["Business:", "Sample Traders, Ghatkopar", "(Wholesale of Textiles)"]},
+  "siblings": [
+    {"relation": "bhai-bhabhi", "display_name": "ભાઈ નામ ભાભી નામ શાહ", "place": "થાણા",
+     "photos": ["photos/couple.jpg"],
+     "details": [{"who": "ભાઈ", "text": "Chartered Accountant"}, {"who": "ભાભી", "text": "Software Engineer at Sample Tech"}]}
+  ],
+  "education": [
+    {"degree": "Bachelor in Fashion Styling", "institute": "Sample Institute of Design, Mumbai", "photo": "photos/edu.jpg"},
+    {"degree": "Diploma in Styling", "institute": "Sample Academy"}
+  ],
+  "work": {"style": "bullets", "bullets": [
+    "Marketing & PR at Sample Group, Mumbai",
+    "Freelance Social Media Marketing & Content Creation",
+    "Founder of Sample Styles (Jewellery Brand)",
+    "Fashion & Product Stylist"]},
+  "property": ["Residence 2BHK at Ghatkopar"],
+  "hobbies": ["Travelling", "Trying new foods", "Creating content", "DIY & crafts", "Movies", "Spending time with family"]
+}

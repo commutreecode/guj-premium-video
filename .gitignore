@@ -1,0 +1,9 @@
+# personal data never goes to git
+profiles/
+out/
+*.psd
+*.psb
+# python
+__pycache__/
+*.pyc
+.venv/

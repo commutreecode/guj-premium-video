@@ -1,0 +1,3 @@
+Pillow>=10.0        # must be built with RAQM (libraqm) for Gujarati shaping
+numpy>=1.24
+fonttools>=4.40
