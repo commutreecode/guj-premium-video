@@ -1,3 +1,4 @@
 Pillow>=10.0        # must be built with RAQM (libraqm) for Gujarati shaping
 numpy>=1.24
 fonttools>=4.40
+pillow-heif>=0.16  # optional: iPhone HEIC photos

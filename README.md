@@ -104,6 +104,19 @@ Without crop/focus the photo is centre-cropped with focus `[0.5, 0.35]`.
 
 One photo in a family card → centred single frame (landscape photos get a wide frame); two → side by side.
 
+## Intake form (Google Form → Sheet → profile folder)
+
+`forms/gpv_form.gs` is a Google Apps Script that creates the Gujarati intake form and its response Sheet.
+
+1. script.google.com → New project → paste `forms/gpv_form.gs` → run `createGujPremiumForm` (authorise).
+2. The log prints the form, share and Sheet links, plus the **file-upload questions** to add by hand
+   (Apps Script cannot create upload questions). Use exactly the titles printed, in the sections named.
+3. Each submission creates `Drive / Guj Premium Video - Profiles / <id>_<first name>/` with
+   `profile.json` + `photos/` (renamed: hero, g1…g10, dadi, dada, nani, nana, mata, pita, s1, s2, edu, work, logo),
+   and fills the Sheet's `JSON` and `Folder` columns.
+4. Download that folder as a zip → `profiles/<name>/` → render.
+5. After editing a row in the Sheet, run `rebuildSelectedRow` (or `rebuildAllRows`).
+
 ## Quick test (sample data only)
 
 ```bash

@@ -8,6 +8,12 @@ from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
 from .config import BG_IMAGE, BROWN, H, LOGO, W
 
+try:  # iPhone HEIC photos from the form (optional: pip install pillow-heif)
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except ImportError:
+    pass
+
 SS = 4  # supersampling for anti-aliased shapes
 
 

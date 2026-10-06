@@ -10,3 +10,16 @@
 - Test after any change:
   `python3 render.py samples/profile.example.json --cards-only` (fast) and
   `python3 render.py samples/profile.example.json --fast` (full preview with gallery + outro).
+
+## Rendering a profile in a new chat session (token-light)
+
+1. `git clone --depth 1 https://github.com/commutreecode/guj-premium-video && cd guj-premium-video`
+2. `pip install -r requirements.txt` (check RAQM: `python3 -c "from PIL import features; print(features.check('raqm'))"`)
+3. The user uploads the profile folder from Drive (`<id>_<name>.zip`: `profile.json` + `photos/`).
+   Unzip it to `profiles/<name>/`.
+4. Stage 1: `python3 render.py profiles/<name>/profile.json` → give the user `out/<id>/preview.mp4` and
+   `out/<id>/tts_input.txt` (they generate the voice in Google AI Studio).
+5. Stage 2: `python3 render.py profiles/<name>/profile.json --voice <voice.wav>` → `out/<id>/final.mp4`.
+   Check `alignment.txt`; if a sentence is on the wrong card, edit `out/<id>/voice_spans.json` and re-run
+   with `--spans`.
+6. Do not read or print source files unless something needs changing — the code is already tested.

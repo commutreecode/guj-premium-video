@@ -17,7 +17,7 @@ from pathlib import Path
 
 
 from vcards import audio, narration, scenes, video
-from vcards.config import AUDIO, MUSIC, ROOT
+from vcards.config import AUDIO, BG_IMAGE, FONTS, LOGO, MUSIC, OUTRO, ROOT
 
 
 def read_narration(path: Path) -> dict:
@@ -52,6 +52,9 @@ def main(argv=None):
     if a.no_music or (a.music and not a.music.exists()):
         a.music = None
 
+    missing = [str(x) for x in [*FONTS.values(), BG_IMAGE, LOGO, OUTRO] if not Path(x).exists()]
+    if missing:
+        raise SystemExit("Missing assets:\n  " + "\n  ".join(missing))
     t0 = time.time()
     p = json.loads(a.profile.read_text(encoding="utf-8"))
     base = a.profile.resolve().parent
