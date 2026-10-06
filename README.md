@@ -112,6 +112,10 @@ One photo in a family card → centred single frame (landscape photos get a wide
 v2: birth **year** only · optional **couple photo** for Dada-Dadi, Nana-Nani, Mata-Pita (landscape gets the
 wide frame) · siblings **branch by relation** (બહેન-બનેવી / ભાઈ-ભાભી / મોટા ભાઈ-ભાભી / ભાઈ / બહેન each get their
 own fields, up to 2 siblings) · own **Income / Property** section.
+v2.1: one **height** dropdown (4'6"…6'6") · occupation **branches by type** (ફેમિલી બિઝનેસ / પોતાનો બિઝનેસ / નોકરી /
+પ્રોફેશનલ / કોઈ નહીં) · sibling questions without the "ભાઈ/બહેન n - " prefix. An existing v2 form is upgraded in place by
+running `upgradeV2` once in its Apps Script project (same links, responses and upload questions kept).
+Expected result: `forms/EXPECTED_FORM_LAYOUT.md`.
 
 1. script.google.com → New project → paste `forms/gpv_form.gs` → run `createGujPremiumForm` (authorise).
 2. The log prints the form, share and Sheet links, plus the **file-upload questions** to add by hand

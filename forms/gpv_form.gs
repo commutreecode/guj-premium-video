@@ -3,6 +3,8 @@
  *
  * v2 changes: birth YEAR only · couple-photo option (grandparents, parents) · siblings branch by
  * relation (ભાઈ-ભાભી / બહેન-બનેવી / ભાઈ / બહેન get their own fields) · own Income / Property section.
+ * v2.1: one height dropdown (4'6" … 6'6") · occupation branches by type (બિઝનેસ / નોકરી / પ્રોફેશનલ / કોઈ નહીં) · sibling questions without the
+ *       "ભાઈ/બહેન 1 - " prefix. Existing v2 forms: run upgradeV2 once (keeps links and upload questions).
  * Use a NEW Apps Script project for v2. Keep the v1 project (forms/gpv_form_v1.gs) for old responses.
  *
  * SETUP (once)
@@ -38,6 +40,9 @@ const SEC = {
   s2ph: 'ભાઈ/બહેન 2 - ફોટો',
   edu: 'અભ્યાસ',
   work: 'વ્યવસાય',
+  work_biz: 'વ્યવસાય - બિઝનેસ વિગત',
+  work_job: 'વ્યવસાય - નોકરી / પ્રોફેશન વિગત',
+  work_ph: 'વ્યવસાય - ફોટો / લોગો',
   prop: 'Income / Property',
 };
 
@@ -50,8 +55,7 @@ const Q = {
   city: 'હાલ (Current city / area)',
   birth_year: 'જન્મ વર્ષ (Birth year)',
   marital: 'વૈવાહિક સ્થિતિ (Marital status)',
-  height_ft: 'ઊંચાઈ - ફૂટ (Height, feet)',
-  height_in: 'ઊંચાઈ - ઇંચ (Height, inches)',
+  height: 'ઊંચાઈ (Height)',
   sect: 'સમાજ / ફિરકો (e.g. દેરાવાસી જૈન)',
   hobbies: 'શોખ - English, comma separated (Hobbies)',
   profile_url: 'CommuTree profile link',
@@ -75,15 +79,24 @@ const Q = {
   edu2_degree: 'અભ્યાસ 2 - Degree (optional)',
   edu2_inst: 'અભ્યાસ 2 - College / University (optional)',
 
-  work_style: 'વ્યવસાય - કાર્ડ પ્રકાર (Job card type)',
-  work_label: 'વ્યવસાય - પ્રકાર (e.g. Family Business, Job, Self-employed)',
+  work_type: 'વ્યવસાય પ્રકાર (Occupation type)',
   work_company: 'કંપની / બિઝનેસ નામ, શહેર (e.g. Maru nx, Dombivali)',
   work_desc: 'બિઝનેસ / કામ વિશે (e.g. Retailer of Steel & Home Appliances)',
-  work_bullets: 'વ્યવસાય - points, one per line (for "List of points")',
+  work_bullets: 'નોકરી / પ્રોફેશન - points, one per line (e.g. Manager at ABC Ltd, Mumbai)',
 
   income: 'Income (optional, e.g. 20-50 Lakhs p.a.)',
   property: 'Property - one per line (e.g. Residence 3BHK at Mulund)',
 };
+
+// v2.0 titles, still read for responses collected before upgradeV2
+const OLD = {
+  height_ft: 'ઊંચાઈ - ફૂટ (Height, feet)',
+  height_in: 'ઊંચાઈ - ઇંચ (Height, inches)',
+  work_style: 'વ્યવસાય - કાર્ડ પ્રકાર (Job card type)',
+  work_label: 'વ્યવસાય - પ્રકાર (e.g. Family Business, Job, Self-employed)',
+  work_bullets: 'વ્યવસાય - points, one per line (for "List of points")',
+};
+const OLD_WORK_STYLE = { 'Business (logo + name + description)': 'business', 'List of points': 'bullets' };
 
 // Sibling questions: n = 1 or 2. Each relation has its own section and fields.
 const SQ = n => ({
@@ -106,6 +119,11 @@ const SQ = n => ({
   s_work: `ભાઈ/બહેન ${n} - બહેનનો અભ્યાસ / વ્યવસાય`,
 });
 
+// v2.1: detail questions are shown without the "ભાઈ/બહેન n - " prefix (the section title says it).
+// Sibling 1 and 2 then share titles; the builder tells them apart by column order (1st = sibling 1).
+const SIB_PREFIX = /^ભાઈ\/બહેન [12] - /;
+const plain = t => t.replace(SIB_PREFIX, '');
+
 const SIB_TYPES = {      // choice text -> [relation in JSON, field group]
   'બહેન - બનેવી': ['bahen-banevi', 'bb'],
   'ભાઈ - ભાભી': ['bhai-bhabhi', 'bh'],
@@ -119,8 +137,18 @@ const CHOICES = {
   gender: { 'છોકરો (Boy)': 'boy', 'છોકરી (Girl)': 'girl' },
   marital: { 'Single': 'Single', 'Divorced': 'Divorced', 'Widow': 'Widow', 'Widower': 'Widower' },
   privacy: { 'Show clearly': 'clear', 'Blur': 'blur', 'Hide (no candidate photos)': 'hide' },
-  work_style: { 'Business (logo + name + description)': 'business', 'List of points': 'bullets' },
 };
+
+const HEIGHTS = (() => { const h = []; for (let i = 4 * 12 + 6; i <= 6 * 12 + 6; i++) h.push(`${Math.floor(i / 12)}'${i % 12}"`); return h; })();
+
+const WORK_TYPES = {     // choice text -> [card style, label used in narration]
+  'ફેમિલી બિઝનેસ (Family Business)': ['business', 'Family Business'],
+  'પોતાનો બિઝનેસ (Own Business)': ['business', 'Business'],
+  'નોકરી (Job)': ['bullets', 'Job'],
+  'પ્રોફેશનલ / સ્વરોજગાર (Professional / Self-employed)': ['bullets', 'Professional'],
+};
+const WORK_NONE = 'કોઈ નહીં / અભ્યાસ ચાલુ (None / Studying)';
+const WORK_PH_HELP = 'વ્યવસાય કાર્ડ માટે ફોટો (optional). લોગો ફક્ત બિઝનેસ માટે.';
 
 // ---------------------------------------------------------------- upload questions (add by hand)
 // role -> [title, max files (Forms allows 1/5/10), section, required]
@@ -139,8 +167,8 @@ const UPLOADS = {
   s1:        ['ફોટો: ભાઈ/બહેન 1 (1 couple photo or 2 separate)', 5, SEC.s1ph + ' - at the TOP, above "ભાઈ/બહેન 2 - સંબંધ"'],
   s2:        ['ફોટો: ભાઈ/બહેન 2 (1 couple photo or 2 separate)', 5, SEC.s2ph],
   edu:       ['ફોટો: અભ્યાસ કાર્ડ માટે (optional)', 1, SEC.edu],
-  work:      ['ફોટો: વ્યવસાય કાર્ડ માટે (optional)', 1, SEC.work],
-  logo:      ['લોગો: કંપની / બિઝનેસ (PNG, optional)', 1, SEC.work],
+  work:      ['ફોટો: વ્યવસાય કાર્ડ માટે (optional)', 1, SEC.work_ph],
+  logo:      ['લોગો: કંપની / બિઝનેસ (PNG, optional)', 1, SEC.work_ph],
 };
 
 const COUPLE_HELP = 'ફોટા: અલગ અલગ (2 ફોટા) અથવા એક સાથેનો couple ફોટો — બંનેમાંથી એક. ' +
@@ -172,8 +200,7 @@ function createGujPremiumForm() {
   for (let y = new Date().getFullYear() - 18; y >= 1965; y--) years.push(String(y));
   list(Q.birth_year, years, true);
   mc(Q.marital, 'marital', true);
-  list(Q.height_ft, ['4', '5', '6', '7'], true);
-  list(Q.height_in, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'], true);
+  list(Q.height, HEIGHTS, true);
   text(Q.sect, true);
   text(Q.hobbies);
   text(Q.profile_url);
@@ -200,10 +227,16 @@ function createGujPremiumForm() {
   const pEdu = page(SEC.edu);
   text(Q.edu1_degree); text(Q.edu1_inst); text(Q.edu2_degree); text(Q.edu2_inst);
   page(SEC.work);
-  mc(Q.work_style, 'work_style');
-  text(Q.work_label); text(Q.work_company); text(Q.work_desc); para(Q.work_bullets);
-  page(SEC.prop, 'Income / Property card માટે. ન હોય તો ખાલી રાખો.');
+  const wq = f.addMultipleChoiceItem().setTitle(Q.work_type).setRequired(true);
+  const pBiz = page(SEC.work_biz);
+  text(Q.work_company); text(Q.work_desc);
+  const pJob = page(SEC.work_job);          // its goTo = exit of the business section
+  para(Q.work_bullets);
+  const pWph = page(SEC.work_ph, WORK_PH_HELP);
+  const pProp = page(SEC.prop, 'Income / Property card માટે. ન હોય તો ખાલી રાખો.');
   text(Q.income); para(Q.property);
+  wq.setChoices(workChoices_(wq, pBiz, pJob, pProp));
+  pJob.setGoToPage(pWph);
 
   // branching choices (set after all pages exist)
   const choices = (q, p) => Object.keys(SIB_TYPES).map(k => q.createChoice(k, p[SIB_TYPES[k][1]]))
@@ -226,19 +259,24 @@ function createGujPremiumForm() {
   listUploadQuestions();
 }
 
+function workChoices_(q, pBiz, pJob, pProp) {
+  return Object.keys(WORK_TYPES).map(k => q.createChoice(k, WORK_TYPES[k][0] === 'business' ? pBiz : pJob))
+      .concat([q.createChoice(WORK_NONE, pProp)]);
+}
+
 /** Creates the 4 relation sections + photo section for sibling n. Returns their page breaks.
  *  PageBreakItem.setGoToPage(x) on a break = where to go after finishing the section BEFORE it. */
 function sibPages_(f, n, page, text) {
   const q = SQ(n);
   const t = k => (n === 1 ? SEC['s1' + k] : SEC['s2' + k]);
   const bb = page(t('bb'));
-  text(q.bb_sis); text(q.bb_bil); text(q.bb_place); text(q.bb_sis_work); text(q.bb_bil_work);
+  [q.bb_sis, q.bb_bil, q.bb_place, q.bb_sis_work, q.bb_bil_work].forEach(t => text(plain(t)));
   const bh = page(t('bh'));            // its goTo -> photos  (= exit of the bb section)
-  text(q.bh_bro); text(q.bh_sil); text(q.bh_place); text(q.bh_bro_work); text(q.bh_sil_work);
+  [q.bh_bro, q.bh_sil, q.bh_place, q.bh_bro_work, q.bh_sil_work].forEach(t => text(plain(t)));
   const b = page(t('b'));              // exit of bh section
-  text(q.b_name); text(q.b_place); text(q.b_work);
+  [q.b_name, q.b_place, q.b_work].forEach(t => text(plain(t)));
   const s = page(t('s'));              // exit of b section
-  text(q.s_name); text(q.s_place); text(q.s_work);
+  [q.s_name, q.s_place, q.s_work].forEach(t => text(plain(t)));
   const ph = page(t('ph'), 'ફોટો: 1 couple ફોટો અથવા 2 અલગ ફોટા.');   // s section flows here linearly
   return { bb: bb, bh: bh, b: b, s: s, ph: ph };
 }
@@ -249,6 +287,63 @@ function listUploadQuestions() {
     const [t, n, s, req] = UPLOADS[k];
     Logger.log(`  [${s}]  ${t}   (max files: ${n}${req ? ', required' : ''})`);
   });
+}
+
+// ================================================================ upgrade an existing v2 form to v2.1
+/** Run ONCE on the existing v2 form (found via the Sheet created by createGujPremiumForm).
+ *  Keeps the form links, responses and the hand-added upload questions. Safe to run again. */
+function upgradeV2() {
+  const f = form_();
+  const T = FormApp.ItemType;
+  const find = (title, type) => f.getItems(type).find(i => i.getTitle() === title);
+  const log = [];
+
+  // 1. sibling detail questions: drop the "ભાઈ/બહેન n - " prefix
+  f.getItems(T.TEXT).forEach(i => {
+    if (SIB_PREFIX.test(i.getTitle())) { i.setTitle(plain(i.getTitle())); log.push('renamed sibling question'); }
+  });
+
+  // 2. height: feet + inches -> one dropdown
+  const ft = find(OLD.height_ft, T.LIST), inch = find(OLD.height_in, T.LIST);
+  if (ft && !find(Q.height, T.LIST)) {
+    const h = f.addListItem().setTitle(Q.height).setChoiceValues(HEIGHTS).setRequired(true);
+    f.moveItem(h.getIndex(), ft.getIndex());
+    f.deleteItem(ft);
+    if (inch) f.deleteItem(inch);
+    log.push('height -> one dropdown');
+  }
+
+  // 3. occupation: branch by type
+  const wqItem = find(OLD.work_style, T.MULTIPLE_CHOICE) || find(Q.work_type, T.MULTIPLE_CHOICE);
+  if (wqItem && !find(SEC.work_biz, T.PAGE_BREAK)) {
+    const wq = wqItem.asMultipleChoiceItem().setTitle(Q.work_type).setRequired(true);
+    const label = find(OLD.work_label, T.TEXT);
+    if (label) f.deleteItem(label);
+    const company = find(Q.work_company, T.TEXT), desc = find(Q.work_desc, T.TEXT);
+    const bullets = find(OLD.work_bullets, T.PARAGRAPH_TEXT) || find(Q.work_bullets, T.PARAGRAPH_TEXT);
+    bullets.setTitle(Q.work_bullets);
+    const photo = find(UPLOADS.work[0], T.FILE_UPLOAD), logo = find(UPLOADS.logo[0], T.FILE_UPLOAD);
+    const pBiz = f.addPageBreakItem().setTitle(SEC.work_biz);
+    const pJob = f.addPageBreakItem().setTitle(SEC.work_job);
+    const pWph = f.addPageBreakItem().setTitle(SEC.work_ph).setHelpText(WORK_PH_HELP);
+    // order after the type question: biz page, company, desc, job page, points, photo page, photo, logo
+    let pos = wq.getIndex() + 1;
+    [pBiz, company, desc, pJob, bullets, pWph, photo, logo].forEach(it => {
+      if (it) f.moveItem(it.getIndex(), pos++);
+    });
+    const pProp = find(SEC.prop, T.PAGE_BREAK).asPageBreakItem();
+    wq.setChoices(workChoices_(wq, pBiz, pJob, pProp));
+    pJob.setGoToPage(pWph);
+    log.push('occupation branches by type');
+  }
+  Logger.log(log.length ? log.join('\n') : 'Nothing to do: form is already v2.1');
+  Logger.log('Form (edit): ' + f.getEditUrl());
+}
+
+function form_() {
+  const id = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+  if (!id) throw new Error('No SHEET_ID: run this in the project that created the v2 form.');
+  return FormApp.openByUrl(SpreadsheetApp.openById(id).getFormUrl());
 }
 
 // ================================================================ submission -> JSON
@@ -275,9 +370,12 @@ function sheet_() {
 function buildRow_(sh, row) {
   const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   const vals = sh.getRange(row, 1, 1, headers.length).getValues()[0];
-  const by = {};
-  headers.forEach((h, i) => by[h.trim()] = vals[i]);
-  const raw = t => String(by[t] == null ? '' : by[t]).trim();
+  const occ = {};                                   // title -> column indexes (duplicates in order)
+  headers.forEach((h, i) => (occ[h.trim()] = occ[h.trim()] || []).push(i));
+  const raw = (t, n) => {
+    const i = (occ[t] || [])[(n || 1) - 1];
+    return i == null || vals[i] == null ? '' : String(vals[i]).trim();
+  };
   const get = k => raw(Q[k]);
   const linesOf = s => s.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
   const lines = k => linesOf(get(k));
@@ -304,7 +402,8 @@ function buildRow_(sh, row) {
   const yr = Number((get('birth_year').match(/(19|20)\d\d/) || [''])[0]);
   if (yr) p.birth_year = yr;
   p.marital_status = pick('marital', 'marital') || get('marital');
-  if (get('height_ft')) p.height = `${get('height_ft')}'${get('height_in') || 0}"`;
+  if (get('height')) p.height = get('height');
+  else if (raw(OLD.height_ft)) p.height = `${raw(OLD.height_ft)}'${raw(OLD.height_in) || 0}"`;
   if (get('sect')) p.sect = get('sect');
 
   p.photos = {};
@@ -352,7 +451,7 @@ function buildRow_(sh, row) {
     const q = SQ(n), t = raw(q.type);
     if (!SIB_TYPES[t]) return;
     const [relation, g] = SIB_TYPES[t];
-    const r = k => raw(q[k]);
+    const r = k => raw(plain(q[k]), n) || raw(q[k]);   // v2.1 title (n-th copy), else v2.0 title
     let s;
     if (g === 'bb' && (r('bb_sis') || r('bb_bil'))) {
       s = { relation, display_name: [r('bb_sis'), r('bb_bil')].filter(Boolean).join(' '), place: r('bb_place'),
@@ -386,18 +485,23 @@ function buildRow_(sh, row) {
   if (edu.length) p.education = edu;
 
   // work
-  const style = pick('work_style', 'work_style') || (get('work_company') ? 'business' : 'bullets');
+  const wt = WORK_TYPES[get('work_type')];
+  const style = wt ? wt[0] : (OLD_WORK_STYLE[raw(OLD.work_style)] || (get('work_company') ? 'business' : 'bullets'));
+  const label = wt ? wt[1] : raw(OLD.work_label);
+  const bullets = lines('work_bullets').length ? lines('work_bullets') : linesOf(raw(OLD.work_bullets));
   const workPh = up('work'), logo = up('logo');
-  if (style === 'business' && (get('work_company') || get('work_desc'))) {
+  if (get('work_type') === WORK_NONE) {
+    // no occupation card
+  } else if (style === 'business' && (get('work_company') || get('work_desc'))) {
     p.work = { style: 'business' };
-    if (get('work_label')) p.work.label = get('work_label');
+    if (label) p.work.label = label;
     if (logo.length) p.work.logo = logo[0];
     if (get('work_company')) p.work.company = get('work_company');
     if (get('work_desc')) p.work.desc = get('work_desc');
     if (workPh.length) p.work.photo = workPh[0];
-  } else if (lines('work_bullets').length) {
-    p.work = { style: 'bullets', bullets: lines('work_bullets') };
-    if (get('work_label')) p.work.label = get('work_label');
+  } else if (bullets.length) {
+    p.work = { style: 'bullets', bullets: bullets };
+    if (label) p.work.label = label;
     if (workPh.length) p.work.photo = workPh[0];
   }
 
