@@ -508,13 +508,19 @@ function buildRow_(sh, row) {
   const root = folder_(DriveApp.getRootFolder(), DRIVE_ROOT);
   const pf = folder_(root, id + '_' + first);
   const dir = folder_(pf, 'photos');
-  const up = (role, nameFn, max) => {
+  const idsOf = (role, max) => {
     // a re-created upload question gets a NEW column with the same title: use the last non-empty one
     const cells = (occ[UPLOADS[role][0]] || []).map(i => String(vals[i] == null ? '' : vals[i]).trim()).filter(Boolean);
-    const ids = (cells.length ? cells[cells.length - 1] : '').split(',').map(s => (s.match(/[-\w]{25,}/) || [])[0])
+    return (cells.length ? cells[cells.length - 1] : '').split(',').map(s => (s.match(/[-\w]{25,}/) || [])[0])
         .filter(Boolean).slice(0, max || 10);
-    return ids.map((fid, i) => copy_(fid, dir, nameFn ? nameFn(i) : (ids.length > 1 ? `${role}_${i + 1}` : role)));
   };
+  const used = {};
+  const copyAll = (ids, role, nameFn) => ids.map((fid, i) => {
+    const path = copy_(fid, dir, nameFn ? nameFn(i) : (ids.length > 1 ? `${role}_${i + 1}` : role));
+    used[path.slice('photos/'.length)] = true;
+    return path;
+  });
+  const up = (role, nameFn, max) => copyAll(idsOf(role, max), role, nameFn);
 
   const p = { version: 2, id: id, theme: pick('gender', 'gender') || 'boy', lang: 'gu',
               privacy: pick('privacy', 'privacy') || 'clear',
@@ -528,14 +534,19 @@ function buildRow_(sh, row) {
   if (get('sect')) p.sect = get('sect');
 
   p.photos = {};
-  const hero = up('hero'), gallery = up('gallery', i => 'g' + (i + 1));
+  const heroIds = idsOf('hero');
+  const galIds = dedupe_(idsOf('gallery'), heroIds);          // drop repeats of the main photo / each other
+  const hero = copyAll(heroIds, 'hero'), gallery = copyAll(galIds, 'gallery', i => 'g' + (i + 1));
   if (hero.length) p.photos.hero = hero[0];
   if (gallery.length) p.photos.gallery = gallery;
 
   // couple photo wins over separate photos (renderer picks the frame from its orientation)
+  // the same file uploaded to both people's questions = a couple photo
   const famPhotos = (couple, a, b) => {
-    const c = up(couple);
-    return c.length ? c.slice(0, 1) : up(a).concat(up(b));
+    const c = idsOf(couple, 1), ia = idsOf(a, 1), ib = idsOf(b, 1);
+    if (c.length) return copyAll(c, couple);
+    if (ia.length && ib.length && sameFile_(ia[0], ib[0])) return copyAll(ia, couple);
+    return copyAll(ia, a).concat(copyAll(ib, b));
   };
   const pair = (nameK, villK, couple, a, b) => {
     if (!get(nameK)) return null;
@@ -548,7 +559,10 @@ function buildRow_(sh, row) {
   const dd = pair('dd_name', 'dd_village', 'dd_couple', 'dadi', 'dada'); if (dd) p.dada_dadi = dd;
   const nn = pair('nn_name', 'nn_village', 'nn_couple', 'nani', 'nana'); if (nn) p.nana_nani = nn;
 
-  const mata = up('mata'), pita = up('pita'), parC = up('par_couple');
+  const mIds = idsOf('mata', 1), pIds = idsOf('pita', 1);
+  const parSame = mIds.length && pIds.length && sameFile_(mIds[0], pIds[0]);
+  const parC = idsOf('par_couple', 1).length ? up('par_couple') : (parSame ? copyAll(mIds, 'par_couple') : []);
+  const mata = parSame ? [] : copyAll(mIds, 'mata'), pita = parSame ? [] : copyAll(pIds, 'pita');
   if (get('par_name')) {
     p.parents = { display_name: get('par_name') };
     if (get('par_village')) p.parents.village = get('par_village');
@@ -636,6 +650,10 @@ function buildRow_(sh, row) {
   if (hob.length) p.hobbies = hob;
   if (get('profile_url')) p.profile_url = get('profile_url');
 
+  // remove photos left over from an earlier build of this row that profile.json no longer uses
+  const it = dir.getFiles();
+  while (it.hasNext()) { const f = it.next(); if (!used[f.getName()]) f.setTrashed(true); }
+
   const json = JSON.stringify(p, null, 2);
   writeFile_(pf, 'profile.json', json);
   setCol_(sh, row, 'JSON', json);
@@ -646,6 +664,22 @@ function buildRow_(sh, row) {
 function folder_(parent, name) {
   const it = parent.getFoldersByName(name);
   return it.hasNext() ? it.next() : parent.createFolder(name);
+}
+
+/** Same upload? Form uploads of one file get different ids but keep its name and size. */
+function sameFile_(a, b) {
+  if (a === b) return true;
+  const fa = DriveApp.getFileById(a), fb = DriveApp.getFileById(b);
+  return fa.getSize() === fb.getSize() && fa.getName() === fb.getName();
+}
+
+function dedupe_(ids, exclude) {
+  const out = [];
+  ids.forEach(id => {
+    if ((exclude || []).concat(out).some(x => sameFile_(x, id))) return;
+    out.push(id);
+  });
+  return out;
 }
 
 function copy_(fileId, dir, base) {

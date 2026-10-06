@@ -177,6 +177,20 @@ def single_parent(ctx: Ctx, rel: str, d_: dict) -> Image.Image:
     occ = d_.get("occupation") or []
     if isinstance(occ, str):
         occ = [occ]
+    if not ph:  # no own photo (e.g. only a couple photo was given): text-only panel instead of an empty frame
+        imgs.fill_rrect(im, (92, 600, 1108, 1180), 88, BROWN)
+        st = Style(gu="akhand_xb", lat="poppins_sb", size=96, color=WHITE)
+        lines = []
+        for o in occ:
+            ls, s2 = wrap_fit(o, st, 900, 2, 0.6)
+            lines += [(ln, s2) for ln in ls]
+        if lines:
+            k = min(1.0, 4 / max(4, len(lines)))
+            pitch = 120 * k
+            first = 890 - pitch * (len(lines) - 1) / 2 + 34 * k
+            for i, (ln, s2) in enumerate(lines):
+                draw_line(d, ln, fit(ln, s2.scaled(k), 900), 600, first + i * pitch)
+        return im
     if len(occ) <= 1:
         band(im, 1216, 1457, BROWN)
         if occ:
