@@ -67,8 +67,8 @@ def photo_boxes(n: int, aspect: float, y0: int, y1: int, wide_y1=None):
     """Layout for 1-2 people photos in family-style cards."""
     if n >= 2:
         return [(92, y0, 574, y1), (626, y0, 1108, y1)]
-    if aspect > 1.15:  # one landscape photo
-        return [(220, y0, 980, wide_y1 or (y0 + 597))]
+    if aspect >= 0.9:  # square or landscape (typical couple photo): wide frame keeps both people
+        return [(220, y0, 980, y1)]
     return [(359, y0, 841, y1)]
 
 
@@ -227,13 +227,18 @@ def sibling(ctx: Ctx, s: dict) -> Image.Image:
     photos = [ctx.photo(x) for x in s.get("photos", []) if x][:2]
     if len(photos) == 2:
         boxes = [(94, 494, 577, 1108), (628, 494, 1111, 1108)]
-    elif photos and _aspect(photos[0]) > 1.15:
-        boxes = [(220, 494, 980, 1092)]
+    elif photos and _aspect(photos[0]) >= 0.9:
+        boxes = [(220, 494, 980, 1108)]
     else:
         boxes = [(357, 490, 844, 1109)]
     for ph, box in zip(photos, boxes):
         imgs.paste_photo(im, ph, box, 88)
-    band(im, 1122, H, BROWN)
+    if not photos:  # no photo: details in a rounded panel in the middle instead of an empty frame
+        imgs.fill_rrect(im, (92, 540, 1108, 1180), 88, BROWN)
+        y_top, y_bot = 540, 1180
+    else:
+        band(im, 1122, H, BROWN)
+        y_top, y_bot = 1122, H
     # details block
     lab = Style(gu="akhand_xb", lat="poppins_sb", size=83.3, lat_scale=0.72, color=WHITE)
     lines = []  # (text, style, pitch)
@@ -249,11 +254,13 @@ def sibling(ctx: Ctx, s: dict) -> Image.Image:
             body = Style(gu="akhand_xb", lat="poppins_sb", size=83.3, lat_scale=0.70, color=WHITE)
             for ln in wrap_balanced(txt, body, 1120):
                 lines.append((ln, body, 66))
-    _draw_block(d, lines, 1122, H)
+    if not photos:  # bigger text inside the panel
+        lines = [(t, st.scaled(1.35), pt * 1.35) for t, st, pt in lines]
+    _draw_block(d, lines, y_top, y_bot, max_w=1130 if photos else 920)
     return im
 
 
-def _draw_block(d, lines, y0, y1, x=600, align="center"):
+def _draw_block(d, lines, y0, y1, x=600, align="center", max_w=1130):
     """Vertically centre a list of (text, style, pitch) lines inside y0..y1."""
     if not lines:
         return
@@ -265,7 +272,7 @@ def _draw_block(d, lines, y0, y1, x=600, align="center"):
     yb = top
     for (txt, st, _), p in zip(lines, pitches):
         yb += p
-        draw_line(d, txt, fit(txt, st.scaled(k), 1130), x, yb - p * 0.22, align)
+        draw_line(d, txt, fit(txt, st.scaled(k), max_w), x, yb - p * 0.22, align)
 
 
 def education(ctx: Ctx, entries: list, first: str) -> Image.Image:
