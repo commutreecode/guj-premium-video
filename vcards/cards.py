@@ -181,7 +181,14 @@ def single_parent(ctx: Ctx, rel: str, d_: dict) -> Image.Image:
         band(im, 1216, 1457, BROWN)
         if occ:
             st = Style(gu="akhand_xb", lat="poppins_sb", size=104.2, lat_scale=1.0, color=WHITE)
-            draw_line(d, occ[0], fit(occ[0], st, 1120), 600, 1377)
+            if measure(occ[0], st.scaled(0.75)) <= 1120:
+                draw_line(d, occ[0], fit(occ[0], st, 1120), 600, 1377)
+            else:  # long single line: wrap into 2 balanced lines instead of shrinking it unreadably
+                lines, st2 = wrap_fit(occ[0], st.scaled(0.68), 1120, 2, 0.6)
+                pitch = st2.size * 1.25
+                first = (1216 + 1457) / 2 - pitch * (len(lines) - 1) / 2 + st2.size * 0.36
+                for i, ln in enumerate(lines):
+                    draw_line(d, ln, fit(ln, st2, 1120), 600, first + i * pitch)
     else:
         band(im, 1161, 1471, BROWN)
         sizes = [62.5] + [70.8] * (len(occ) - 1)

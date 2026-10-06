@@ -340,6 +340,125 @@ function upgradeV2() {
   Logger.log('Form (edit): ' + f.getEditUrl());
 }
 
+// ================================================================ import responses from the v1 form
+const V1_SHEET_ID = '1IhX6cn9I_6v6otY_CkeTyDdZq9bAmbJriqFon-O5LOw';
+const V1 = {
+  dob: 'જન્મ તારીખ (Date of birth)',
+  rel: n => `ભાઈ/બહેન ${n} - સંબંધ (Sibling ${n} relation)`,
+  name: n => `ભાઈ/બહેન ${n} - નામ (as on card)`,
+  place: n => `ભાઈ/બહેન ${n} - હાલ (place)`,
+  details: n => n === 1 ? 'ભાઈ/બહેન 1 - વિગત, one line per person (e.g. કિંજલ: Teacher)'
+                        : 'ભાઈ/બહેન 2 - વિગત, one line per person',
+  photo: n => `ફોટો: ભાઈ/બહેન ${n} (1 joint photo or 2 photos)`,
+  property: 'Income / Property - one per line (e.g. Residence 3BHK at Mulund)',
+};
+const V1_REL = {
+  'બહેન - બનેવી (Sister & brother-in-law)': 'બહેન - બનેવી',
+  'ભાઈ - ભાભી (Brother & sister-in-law)': 'ભાઈ - ભાભી',
+  'મોટા ભાઈ - ભાભી (Elder brother & sister-in-law)': 'મોટા ભાઈ - ભાભી',
+  'ભાઈ (Brother)': 'ભાઈ (અપરિણીત)',
+  'બહેન (Sister)': 'બહેન (અપરિણીત)',
+};
+
+/** Copies every v1 response into the v2 Sheet (mapped to v2 questions), then builds its JSON + folder.
+ *  Rows already imported are skipped (column "Source" = "v1 row N"). Photos are reused from Drive. */
+function importFromV1() {
+  const srcSs = SpreadsheetApp.openById(V1_SHEET_ID);
+  const src = srcSs.getSheets().find(s => s.getFormUrl()) || srcSs.getSheets()[0];
+  const sv = src.getDataRange().getValues();
+  const sh = sv[0].map(x => String(x).trim());
+  const dst = sheet_();
+  let dh = dst.getRange(1, 1, 1, dst.getLastColumn()).getValues()[0].map(x => String(x).trim());
+  if (dh.indexOf('Source') < 0) { dst.getRange(1, dh.length + 1).setValue('Source'); dh.push('Source'); }
+  const srcCol = dh.indexOf('Source');
+  const done = dst.getLastRow() > 1
+      ? dst.getRange(2, srcCol + 1, dst.getLastRow() - 1, 1).getValues().map(r => String(r[0])) : [];
+  const log = [];
+
+  for (let r = 1; r < sv.length; r++) {
+    const tag = 'v1 row ' + (r + 1);
+    if (done.indexOf(tag) >= 0) { log.push(tag + ': already imported'); continue; }
+    const v = t => { const i = sh.indexOf(t); return i < 0 || sv[r][i] == null ? '' : sv[r][i]; };
+    const s = t => String(v(t)).trim();
+    if (!s(Q.name)) continue;
+    const out = new Array(dh.length).fill('');
+    const put = (t, val, n) => {               // n-th column with this title (default 1st)
+      let c = 0;
+      for (let i = 0; i < dh.length; i++) if (dh[i] === t && ++c === (n || 1)) { out[i] = val; return; }
+      throw new Error('v2 column not found: ' + t);
+    };
+    const putLast = (t, val) => { const i = dh.lastIndexOf(t); if (i < 0) throw new Error('v2 column not found: ' + t); out[i] = val; };
+
+    put('Timestamp', v('Timestamp'));
+    ['gender', 'name', 'first_name', 'native_village', 'city', 'marital', 'sect', 'hobbies', 'profile_url', 'privacy',
+     'dd_name', 'dd_village', 'nn_name', 'nn_village', 'par_name', 'par_village', 'par_city',
+     'mother_name', 'mother_occ', 'father_name', 'father_occ',
+     'edu1_degree', 'edu1_inst', 'edu2_degree', 'edu2_inst'].forEach(k => put(Q[k], v(Q[k])));
+    ['hero', 'gallery', 'dadi', 'dada', 'nani', 'nana', 'mata', 'pita', 'edu', 'work', 'logo']
+        .forEach(k => putLast(UPLOADS[k][0], s(UPLOADS[k][0])));
+
+    const dob = v(V1.dob);
+    const year = dob instanceof Date ? dob.getFullYear() : ((s(V1.dob).match(/(19|20)\d\d/) || [''])[0]);
+    if (year) put(Q.birth_year, String(year));
+    if (s(OLD.height_ft)) put(Q.height, `${s(OLD.height_ft)}'${s(OLD.height_in) || 0}"`);
+
+    [1, 2].forEach(n => {
+      const rel = V1_REL[s(V1.rel(n))];
+      put(SQ(n).type, rel || SIB_NONE);
+      if (!rel) return;
+      const q = SQ(n), name = s(V1.name(n)), place = s(V1.place(n));
+      const det = linesOf_(s(V1.details(n))).map(l => {
+        const i = l.search(/[:：]/);
+        return i > 0 ? { who: l.slice(0, i).trim(), text: l.slice(i + 1).trim() } : { who: '', text: l };
+      });
+      const words = name.split(/\s+/), first = words[0] || '', rest = words.slice(1).join(' ');
+      const workOf = (who, idx) => {
+        const d = det.find(x => x.who && who && (x.who === who || who.indexOf(x.who) === 0 || x.who.indexOf(who) === 0));
+        return d ? d.text : (det[idx] && !det[idx].who ? det[idx].text : '');
+      };
+      const P = k => plain(q[k]);
+      const g = SIB_TYPES[rel][1];
+      if (g === 'bb') {           // v1 card name = sister's first name + brother-in-law's full name
+        put(P('bb_sis'), first, n); put(P('bb_bil'), rest, n); put(P('bb_place'), place, n);
+        put(P('bb_sis_work'), workOf(first, 0), n); put(P('bb_bil_work'), workOf(rest.split(' ')[0], 1), n);
+      } else if (g === 'bh') {    // v1 card name = bhabhi's first name + brother's full name
+        put(P('bh_sil'), first, n); put(P('bh_bro'), rest, n); put(P('bh_place'), place, n);
+        put(P('bh_bro_work'), workOf(rest.split(' ')[0], 0), n); put(P('bh_sil_work'), workOf(first, 1), n);
+      } else {
+        const key = g === 'b' ? 'b' : 's';
+        put(P(key + '_name'), name, n); put(P(key + '_place'), place, n);
+        put(P(key + '_work'), det.map(d => d.text).join(', '), n);
+      }
+      putLast(UPLOADS['s' + n][0], s(V1.photo(n)));
+    });
+
+    // occupation: v1 had a card type + free label; v2 asks the type directly
+    const style = s(OLD.work_style), label = s(OLD.work_label);
+    const company = s(Q.work_company), desc = s(Q.work_desc), pts = s(OLD.work_bullets);
+    let type = WORK_NONE, bullets = '';
+    if (style === 'List of points') {
+      type = 'નોકરી (Job)'; bullets = pts;
+    } else if (/business|બિઝનેસ|વ્યાપાર|વેપાર/i.test(label) || (style && !label)) {
+      type = /family|ફેમિલી/i.test(label) ? 'ફેમિલી બિઝનેસ (Family Business)' : 'પોતાનો બિઝનેસ (Own Business)';
+      put(Q.work_company, company); put(Q.work_desc, desc);
+    } else if (label || company || desc || pts) {      // designation + employer = a job
+      type = 'નોકરી (Job)';
+      bullets = [[label, company].filter(Boolean).join(' at '), desc].concat(linesOf_(pts)).filter(Boolean).join('\n');
+    }
+    put(Q.work_type, type);
+    if (bullets) put(Q.work_bullets, bullets);
+    put(Q.property, s(V1.property));
+    put('Source', tag);
+
+    dst.appendRow(out);
+    buildRow_(dst, dst.getLastRow());
+    log.push(tag + ': imported -> row ' + dst.getLastRow());
+  }
+  Logger.log(log.length ? log.join('\n') : 'No v1 responses found');
+}
+
+function linesOf_(s) { return String(s || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean); }
+
 function form_() {
   const id = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
   if (!id) throw new Error('No SHEET_ID: run this in the project that created the v2 form.');
@@ -390,7 +509,9 @@ function buildRow_(sh, row) {
   const pf = folder_(root, id + '_' + first);
   const dir = folder_(pf, 'photos');
   const up = (role, nameFn, max) => {
-    const ids = raw(UPLOADS[role][0]).split(',').map(s => (s.match(/[-\w]{25,}/) || [])[0])
+    // a re-created upload question gets a NEW column with the same title: use the last non-empty one
+    const cells = (occ[UPLOADS[role][0]] || []).map(i => String(vals[i] == null ? '' : vals[i]).trim()).filter(Boolean);
+    const ids = (cells.length ? cells[cells.length - 1] : '').split(',').map(s => (s.match(/[-\w]{25,}/) || [])[0])
         .filter(Boolean).slice(0, max || 10);
     return ids.map((fid, i) => copy_(fid, dir, nameFn ? nameFn(i) : (ids.length > 1 ? `${role}_${i + 1}` : role)));
   };

@@ -125,6 +125,8 @@ Expected result: `forms/EXPECTED_FORM_LAYOUT.md`.
    edu, work, logo) and fills the Sheet's `JSON` and `Folder` columns.
 4. Download that folder as a zip → `profiles/<name>/` → render.
 5. After editing a row in the Sheet, run `rebuildSelectedRow` (or `rebuildAllRows`).
+6. `importFromV1` copies responses from the v1 form's Sheet into the v2 Sheet (mapped to v2 questions,
+   tagged "v1 row N" in a `Source` column, photos reused from Drive). Safe to run again.
 
 ## Quick test (sample data only)
 
