@@ -46,6 +46,8 @@ def main(argv=None):
                                                 "(seconds in the voice file) instead of automatic split")
     ap.add_argument("--out", type=Path, help="output folder (default out/<id>)")
     ap.add_argument("--cards-only", action="store_true", help="only write card PNGs + narration")
+    ap.add_argument("--narration-only", action="store_true",
+                    help="only write narration.txt / tts_input.txt / scenes.json (no photos needed)")
     ap.add_argument("--no-outro", action="store_true")
     ap.add_argument("--fast", action="store_true", help="faster, lower-quality encode")
     a = ap.parse_args(argv)
@@ -61,6 +63,15 @@ def main(argv=None):
     pid = str(p.get("id", a.profile.parent.name))
     out = a.out or (ROOT / "out" / pid)
     (out / "cards").mkdir(parents=True, exist_ok=True)
+
+    if a.narration_only:
+        out.mkdir(parents=True, exist_ok=True)
+        scs, _ = scenes.build(p, base, images=False)
+        narrated = [sc for sc in scs if sc.text]
+        narration.write_files(out, pid, [(sc.id, sc.text) for sc in narrated])
+        (out / "scenes.json").write_text(json.dumps([sc.id for sc in narrated]), encoding="utf-8")
+        print(f"[ok] narration -> {out / 'narration.txt'}")
+        return
 
     scs, ctx = scenes.build(p, base)
     for i, sc in enumerate(scs, 1):
