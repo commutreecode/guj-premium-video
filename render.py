@@ -73,6 +73,10 @@ def main(argv=None):
         print(f"[ok] narration -> {out / 'narration.txt'}")
         return
 
+    from vcards import imgs
+    if imgs.cv2 is None:   # never render without the approved head-to-chest framing
+        raise SystemExit("Face framing is not available (OpenCV face detector failed to load). "
+                         "Install the pinned requirements: pip install -r requirements.txt")
     scs, ctx = scenes.build(p, base)
     for i, sc in enumerate(scs, 1):
         if sc.kind == "card":
@@ -102,11 +106,15 @@ def main(argv=None):
                 print(f"[warn] no voice for: {', '.join(missing)} (cards stay silent)")
             print(f"[ok] using manual voice spans from {a.spans}")
         else:
-            exp = [narration.estimate_seconds(sc.text) for sc in narrated]
-            spans, report = audio.align(voice, audio.SR, exp)
+            from vcards import align
+            gaps, _ = audio.pauses(voice, audio.SR)
+            spans, method, unsure = align.split([sc.text for sc in narrated], gaps, len(voice) / audio.SR)
             span_of = {sc.id: [sp] for sc, sp in zip(narrated, spans)}
-            rep = "\n".join(f"{line}   {sc.id}" if i >= 2 else line
-                            for i, (line, sc) in enumerate(zip(report.splitlines(), [None, None] + narrated)))
+            rep = [f"voice {len(voice) / audio.SR:.2f}s, split by {method}", f"{'#':>3} {'start':>7} {'end':>7}  card"]
+            for i, (sc, (a_, b)) in enumerate(zip(narrated, spans), 1):
+                flag = "  <-- check" if (i - 1) in unsure else ""
+                rep.append(f"{i:>3} {a_:7.2f} {b:7.2f}  {sc.id}{flag}")
+            rep = "\n".join(rep)
             (out / "alignment.txt").write_text(rep + "\n", encoding="utf-8")
             print(rep)
         # always write the spans used, so they can be corrected and passed back with --spans

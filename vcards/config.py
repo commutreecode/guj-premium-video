@@ -45,8 +45,8 @@ THEMES = {
 
 TIMING = {
     "dissolve": 1.0,        # card-to-card cross dissolve (s)
-    "lead": 0.3,            # card start -> narration start
-    "tail": 1.4,            # narration end -> next card start
+    "lead": 0.65,           # card start -> narration start: after the 1 s dissolve's second half
+    "tail": 1.05,           # narration end -> next card start
     "intro_lead": 0.2,
     "intro_tail": 0.6,
     "min_card": 3.0,
@@ -55,7 +55,6 @@ TIMING = {
     "zoom_end": 1.21,       # Ken Burns 1.00 -> 1.21, linear
     "ticker_px_s": 210,     # hobby ticker speed
     "subline_xfade": 0.4,
-    "chars_per_sec": 15.0,  # narration length estimate before the voice exists
     "hold": 0.5,            # extra reading time after the narration, every card (s)
 }
 

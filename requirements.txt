@@ -1,5 +1,7 @@
-Pillow>=10.0        # must be built with RAQM (libraqm) for Gujarati shaping
-numpy>=1.24
-opencv-python-headless>=4.8   # face detection for automatic head-to-chest framing
-fonttools>=4.40
-pillow-heif>=0.16  # optional: iPhone HEIC photos
+# Tested versions. Upper bounds on purpose: a major update (e.g. OpenCV 5 removed the face-detector loader)
+# must be tested before it is used for real videos (see tests/ and .github/workflows/test.yml).
+Pillow>=10.0,<13          # must be built with RAQM (libraqm) for Gujarati shaping
+numpy>=1.24,<3
+opencv-python-headless>=4.8,<5   # face detection for head-to-chest framing (5.x removed readNetFromCaffe)
+fonttools>=4.40,<5
+pillow-heif>=0.16,<2      # optional: iPhone HEIC photos

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 
-from .config import TIMING
 
 NUM_GU = ["શૂન્ય", "એક", "બે", "ત્રણ", "ચાર", "પાંચ", "છ", "સાત", "આઠ", "નવ", "દસ", "અગિયાર", "બાર"]
 MARITAL_GU = {"single": "અપરિણીત", "unmarried": "અપરિણીત", "divorced": "છૂટાછેડા લીધેલ",
@@ -33,11 +32,21 @@ def _join(parts) -> str:
     return ". ".join(clean(p) for p in parts if p and clean(p)) + "."
 
 
-def scene_text(scene_id: str, p: dict, data) -> str:
-    """Default narration style (approved by the team): say NAMES only. Villages, current city,
-    birth year, marital status, height, sect, colleges and the job label are shown on the cards
-    but not spoken. Occupations, degrees and income/property are spoken."""
+TITLES = re.compile(r"^(CA|CS|CMA|CFA|CPA|Dr\.?|Adv\.?|Er\.?|Prof\.?|ડૉ\.?|ડો\.?)\s+", re.I)
+CARD_PAUSE = "[long pause]"     # ElevenLabs v4 audio tag at the end of every block except the last
+
+
+def plain_first_name(p: dict) -> str:
+    """First name without a professional title: 'CA હિનલ' -> 'હિનલ' (the hero line keeps the full name)."""
     first = p.get("first_name") or p["name"].split()[0]
+    return TITLES.sub("", first).strip() or first
+
+
+def scene_text(scene_id: str, p: dict, data) -> str:
+    """Default narration style (team-approved, Oct 2026). Names only for family; Mata/Pita/sibling cards say
+    the relation (+ occupation for parents) without names; villages, city, year, height, sect, colleges and
+    job labels are shown on the cards but not spoken."""
+    first = plain_first_name(p)
     if scene_id == "intro":
         return "કોમ્યુટ્રી સી ટી પ્રીમિયમ મેમ્બર."
     if scene_id == "hero":
@@ -51,45 +60,42 @@ def scene_text(scene_id: str, p: dict, data) -> str:
         lab = "માતા" if scene_id == "mother" else "પિતા"
         occ = data.get("occupation") or []
         occ = [occ] if isinstance(occ, str) else occ
-        return _join([f"{lab} {data.get('name', '')}", ", ".join(clean(o) for o in occ)])
+        return _join([lab, ", ".join(clean(o) for o in occ if clean(o))])
     if scene_id.startswith("sibling"):
         from .cards import SIBLING_TITLES
         rel = SIBLING_TITLES.get(data.get("relation", ""), data.get("relation", ""))
-        rel = rel.replace(" - ", "-")
-        head = f"{rel}, {data.get('display_name', '')}"
-        return _join([head] + [f"{d.get('who', '')}, {d.get('text', '')}" for d in data.get("details", [])])
+        return _join([f"{rel.replace(' - ', '-')}, {data.get('display_name', '')}"])
     if scene_id == "education":
-        return _join([f"{first} નો અભ્યાસ"] + [e.get("degree", "") for e in data])
+        degs = [clean(e.get("degree", "")) for e in data if clean(e.get("degree", ""))]
+        return _join([f"{first} નુ એજ્યુકેશન"] + [d if i == 0 else f"+ {d}" for i, d in enumerate(degs)])
     if scene_id == "work":
-        lab = f"{first} નો વ્યવસાય"
         if data.get("style") == "bullets":
             items = [clean(b) for b in data.get("bullets", []) if clean(b)]
         else:
             items = [", ".join(clean(x) for x in [data.get("company"), data.get("desc")] if x and clean(x))]
-        items = [i for i in items if i]
-        if not items:
-            return _join([lab])
-        return _join([f"{lab}, {items[0]}"] + items[1:])
+        return _join([f"{first} નુ ઓક્યુપેશન"] + [i for i in items if i])
     if scene_id == "property":
         return _join(["આવક અને પ્રોપર્ટી"] + list(data))
     return ""
 
 
 def estimate_seconds(text: str) -> float:
-    letters = len(re.sub(r"[\s.,:;()\-]", "", text))
-    pauses = text.count(".") + text.count(",") * 0.5
-    return letters / TIMING["chars_per_sec"] + pauses * 0.25
+    """Spoken length estimate for the silent preview (syllables; English counts ~0.6)."""
+    from .align import PARAMS, phrase_syllables, phrases
+    ps = phrases(text)
+    return sum(0.35 + phrase_syllables(x, PARAMS["w_en"]) / 5.3 for x in ps)
 
 
 def write_files(out_dir, profile_id: str, items):
     """items: list of (scene_id, text). Writes narration.txt (review) and tts_input.txt (paste)."""
     lines = [f"# CommuTree video narration - profile {profile_id}",
-             "# Review / edit the text below (keep the [NN id] labels). Then paste tts_input.txt into ElevenLabs",
-             "# Text to Speech in ONE go, same voice + settings every time. Keep the block ORDER and the blank lines.",
+             "# Review / edit the text below (keep the [NN id] labels and the [long pause] tags). Then paste",
+             "# tts_input.txt into ElevenLabs (Eleven v4) in ONE go, same voice + settings every time.",
              "# Download MP3 or WAV and run:  python3 render.py <profile.json> --voice <file>",
              ""]
     plain = []
     for i, (sid, txt) in enumerate(items, 1):
+        txt = txt if i == len(items) else f"{txt} {CARD_PAUSE}"
         lines += [f"[{i:02d} {sid}]", txt, ""]
         plain += [txt, ""]
     (out_dir / "narration.txt").write_text("\n".join(lines), encoding="utf-8")

@@ -25,6 +25,11 @@
 6. Do not read or print source files unless something needs changing — the code is already tested.
 
 ## Narration
-Default style = names only (team-approved, Oct 2026): see "Narration style" in README.md. If the team edits the
+Default style (team-approved, Oct 2026, Eleven v4): see "Narration style" in README.md — every block except the
+last ends with `[long pause]` (keeps the voice split reliable). If the team edits the
 TTS text for a profile, put the same text into `out/<id>/narration.txt` (keep the `[NN id]` labels) before
 running with `--voice`, so the voice is split on the right cards.
+
+## Never silently degrade
+If a feature can't work (face detector, RAQM), the render must stop with an error. Run `python3 tests/run_tests.py`
+after any change; keep `requirements.txt` upper bounds until a new major version passes the tests.

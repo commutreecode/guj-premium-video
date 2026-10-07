@@ -1,0 +1,20 @@
+name: Self-test
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "23 4 * * 1"      # every Monday: catches breaking library updates before they reach a video
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg libraqm0 libfribidi0
+      - run: pip install -q -r requirements.txt
+      - run: python tests/run_tests.py

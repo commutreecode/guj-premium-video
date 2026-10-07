@@ -57,17 +57,40 @@ Background music `assets/music/bg_music.mp3` is used by default (`--music FILE` 
 
 Options: `--spans FILE` (manual voice split), `--cards-only` (PNGs + narration only), `--fast` (quick encode), `--no-outro`, `--out DIR`.
 
-## Narration style (default)
+## Narration style (default, team-approved)
 
-Names only: the voice says each card's names, occupations, degrees and income/property. Villages, current city,
-birth year, marital status, height, sect, colleges and the job label are **shown on the cards but not spoken**.
-Templates: `vcards/narration.py` (`scene_text`). Edit `out/<id>/narration.txt` for one-off changes.
+```text
+કોમ્યુટ્રી સી ટી પ્રીમિયમ મેમ્બર. [long pause]
+<full name>. [long pause]
+પરિવાર પરિચય. દાદા-દાદી, <names>. [long pause]
+નાના-નાની, <names>. [long pause]
+માતા-પિતા, <names>. [long pause]
+માતા. <occupation>. [long pause]
+પિતા. <occupation>. [long pause]
+<relation>, <sibling names>. [long pause]
+<first name> નુ એજ્યુકેશન. <degree 1>. + <degree 2>. [long pause]
+<first name> નુ ઓક્યુપેશન. <job / business>.
+```
+
+- `[long pause]` is an **Eleven v4 audio tag** (not spoken). It makes ElevenLabs leave clearly longer gaps
+  between cards (measured 1.1–1.85 s vs ≤ 0.8 s inside cards), so the voice is split per card reliably.
+- In the education / occupation lines the first name is said without a title (`CA હિનલ` → `હિનલ`).
+- Villages, city, birth year, marital status, height, sect, colleges and the sibling's occupation are shown on
+  the cards but not spoken. Templates: `vcards/narration.py`.
+- **If the wording must change, change the Narration text first (Sheet / `narration.txt`), then make the voice
+  from it.** The video uses that exact text to place the voice.
+
+## Voice splitting
+
+`vcards/align.py`: with `[long pause]` markers the card boundaries are the longest gaps; otherwise each phrase is
+matched to the voice by syllables. If nearby settings disagree, `alignment.txt` marks the cards `<-- check`
+(the automation then uploads `final_CHECK.mp4`).
 
 ## Timing rules
 
 | Item | Rule |
 |---|---|
-| Card length | narration + 0.3 s before + 1.9–2.4 s after (as in the original reference videos; min 3 s; intro min 2.6 s) |
+| Card length | voice starts 0.65 s after the card starts (after the 1 s fade), 1.6–2.1 s after it (as in the original reference videos; min 3 s; intro min 2.6 s) |
 | Reading time | included above: 0.5 s on every card, +0.3–0.5 s on text-heavy cards (`HOLD_EXTRA` in `config.py`; per profile: `"hold": {"hero": 3}`) |
 | Card → card | 1.0 s cross-dissolve |
 | Gallery | photos below the header (y 150–1110), 2.0 s each, hard cuts, zoom 1.00 → 1.21 linear; no narration |
@@ -137,6 +160,13 @@ Expected result: `forms/EXPECTED_FORM_LAYOUT.md`.
 5. After editing a row in the Sheet, run `rebuildSelectedRow` (or `rebuildAllRows`).
 6. `importFromV1` copies responses from the v1 form's Sheet into the v2 Sheet (mapped to v2 questions,
    tagged "v1 row N" in a `Source` column, photos reused from Drive). Safe to run again.
+
+## Self-test
+
+`python3 tests/run_tests.py` checks Gujarati shaping, the face detector (OpenCV < 5), card rendering, the narration
+markers, voice splitting on a real measured pause pattern and a full sample render. It runs on GitHub on every push
+and every Monday (`.github/workflows/test.yml`), so a breaking library update shows up as a red test, not in a video.
+`requirements.txt` pins tested major versions.
 
 ## Quick test (sample data only)
 
