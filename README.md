@@ -57,6 +57,12 @@ Background music `assets/music/bg_music.mp3` is used by default (`--music FILE` 
 
 Options: `--spans FILE` (manual voice split), `--cards-only` (PNGs + narration only), `--fast` (quick encode), `--no-outro`, `--out DIR`.
 
+## Narration style (default)
+
+Names only: the voice says each card's names, occupations, degrees and income/property. Villages, current city,
+birth year, marital status, height, sect, colleges and the job label are **shown on the cards but not spoken**.
+Templates: `vcards/narration.py` (`scene_text`). Edit `out/<id>/narration.txt` for one-off changes.
+
 ## Timing rules
 
 | Item | Rule |

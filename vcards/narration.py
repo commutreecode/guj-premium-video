@@ -34,25 +34,19 @@ def _join(parts) -> str:
 
 
 def scene_text(scene_id: str, p: dict, data) -> str:
+    """Default narration style (approved by the team): say NAMES only. Villages, current city,
+    birth year, marital status, height, sect, colleges and the job label are shown on the cards
+    but not spoken. Occupations, degrees and income/property are spoken."""
     first = p.get("first_name") or p["name"].split()[0]
     if scene_id == "intro":
         return "કોમ્યુટ્રી સી ટી પ્રીમિયમ મેમ્બર."
     if scene_id == "hero":
-        place = ", ".join(x for x in [f"ગામ {p['native_village']}" if p.get("native_village") else "",
-                                      f"હાલ {p['city']}" if p.get("city") else ""] if x)
-        year = p.get("birth_year") or str(p.get("dob", ""))[:4]
-        ms = MARITAL_GU.get(str(p.get("marital_status", "")).lower(), p.get("marital_status", ""))
-        info = ", ".join(x for x in [f"જન્મ વર્ષ {year}" if year else "", ms,
-                                      f"ઊંચાઈ {height_words(p.get('height'))}" if p.get("height") else ""] if x)
-        return _join([p["name"], place, info, p.get("sect")])
+        return _join([p["name"]])
     if scene_id in ("dada_dadi", "nana_nani"):
         lab = "પરિવાર પરિચય. દાદા-દાદી" if scene_id == "dada_dadi" else "નાના-નાની"
-        return _join([f"{lab}, {data.get('display_name', '')}",
-                      f"ગામ {data['village']}" if data.get("village") else ""])
+        return _join([f"{lab}, {data.get('display_name', '')}"])
     if scene_id == "parents":
-        return _join([f"માતા-પિતા, {data.get('display_name', '')}",
-                      ", ".join(x for x in [f"ગામ {data['village']}" if data.get("village") else "",
-                                            f"હાલ {data['city']}" if data.get("city") else ""] if x)])
+        return _join([f"માતા-પિતા, {data.get('display_name', '')}"])
     if scene_id in ("mother", "father"):
         lab = "માતા" if scene_id == "mother" else "પિતા"
         occ = data.get("occupation") or []
@@ -63,21 +57,19 @@ def scene_text(scene_id: str, p: dict, data) -> str:
         rel = SIBLING_TITLES.get(data.get("relation", ""), data.get("relation", ""))
         rel = rel.replace(" - ", "-")
         head = f"{rel}, {data.get('display_name', '')}"
-        if data.get("place"):
-            head += f", {data['place']}"
         return _join([head] + [f"{d.get('who', '')}, {d.get('text', '')}" for d in data.get("details", [])])
     if scene_id == "education":
-        parts = [f"{first} નો અભ્યાસ"]
-        for e in data:
-            parts.append(", ".join(x for x in [e.get("degree"), e.get("institute")] if x))
-        return _join(parts)
+        return _join([f"{first} નો અભ્યાસ"] + [e.get("degree", "") for e in data])
     if scene_id == "work":
         lab = f"{first} નો વ્યવસાય"
-        if data.get("label"):
-            lab += f", {data['label']}"
         if data.get("style") == "bullets":
-            return _join([lab] + data.get("bullets", []))
-        return _join([lab, data.get("company"), data.get("desc")])
+            items = [clean(b) for b in data.get("bullets", []) if clean(b)]
+        else:
+            items = [", ".join(clean(x) for x in [data.get("company"), data.get("desc")] if x and clean(x))]
+        items = [i for i in items if i]
+        if not items:
+            return _join([lab])
+        return _join([f"{lab}, {items[0]}"] + items[1:])
     if scene_id == "property":
         return _join(["આવક અને પ્રોપર્ટી"] + list(data))
     return ""

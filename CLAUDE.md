@@ -23,3 +23,8 @@
    Check `alignment.txt`; if a sentence is on the wrong card, edit `out/<id>/voice_spans.json` and re-run
    with `--spans`.
 6. Do not read or print source files unless something needs changing — the code is already tested.
+
+## Narration
+Default style = names only (team-approved, Oct 2026): see "Narration style" in README.md. If the team edits the
+TTS text for a profile, put the same text into `out/<id>/narration.txt` (keep the `[NN id]` labels) before
+running with `--voice`, so the voice is split on the right cards.
