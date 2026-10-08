@@ -36,6 +36,19 @@ def read_narration(path: Path) -> dict:
     return out
 
 
+def with_progress(frames, seconds: float, step: int = 2):
+    """Pass frames through and print "[progress] N" (0-100, every `step` %) for the automation's progress bar."""
+    from vcards.config import FPS
+    n, last = max(1, int(round(seconds * FPS))), -step
+    for i, fr in enumerate(frames):
+        pct = int(100 * i / n)
+        if pct >= last + step:
+            last = pct
+            print(f"[progress] {pct}", flush=True)
+        yield fr
+    print("[progress] 100", flush=True)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("profile", type=Path)
@@ -143,7 +156,7 @@ def main(argv=None):
 
     name = "final.mp4" if a.voice else "preview.mp4"
     preset, crf = ("veryfast", 23) if (a.fast or not a.voice) else ("medium", 20)
-    video.encode(video.frames(scs, tl, ctx, p), wav, full, out / name, outro=not a.no_outro,
+    video.encode(with_progress(video.frames(scs, tl, ctx, p), total), wav, full, out / name, outro=not a.no_outro,
                  preset=preset, crf=crf, loudness=AUDIO["main_lufs"] if a.voice else None)
     print(f"[ok] {out / name}  (main {total:.1f}s + outro {outro_s:.1f}s)  in {time.time() - t0:.0f}s")
 
