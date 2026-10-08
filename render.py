@@ -81,6 +81,11 @@ def main(argv=None):
     for i, sc in enumerate(scs, 1):
         if sc.kind == "card":
             sc.image.save(out / "cards" / f"{i:02d}_{sc.id}.png")
+    hero = next((sc for sc in scs if sc.id == "hero"), None)
+    if hero is not None:
+        # the hero card opens the video for a moment, so its first frame (thumbnail) shows the candidate
+        hero.image.convert("RGB").save(out / "thumbnail.jpg", quality=92)
+        scs.insert(0, scenes.Scene("cover", "card", hero.image, ""))
 
     narrated = [sc for sc in scs if sc.text]
     narr_path = out / "narration.txt"

@@ -56,6 +56,8 @@ TIMING = {
     "ticker_px_s": 210,     # hobby ticker speed
     "subline_xfade": 0.4,
     "hold": 0.5,            # extra reading time after the narration, every card (s)
+    "cover": 0.5,           # hero card shown first, so the video's first frame (thumbnail) is the candidate
+    "cover_xfade": 0.3,     # quick dissolve cover -> intro
 }
 
 # extra reading time on top of TIMING["hold"] for text-heavy cards (s).
@@ -76,13 +78,16 @@ FRAMING = {
     "face_frac": 1 / 3.0,   # face height = 1/3 of the frame height  -> head to chest
     "headroom": 0.55,       # space above the face, in face heights
     "max_upscale": 2.2,     # never enlarge the source more than this (keeps photos sharp)
+    "gallery_max_upscale": 2.0,   # gallery: max enlargement at the END of the zoom (small/WhatsApp photos are
+                                  # then framed a bit wider instead of looking blurred)
 }
 
 AUDIO = {
     "sr": 44100,
     "voice_rms_db": -20.0,      # voiced-frame RMS target (~ -18 LUFS)
-    "music_below_voice_db": 24.0,
-    "music_fade_in": 0.3,
+    "music_below_voice_db": 16.0,   # was 24 (team: music too low)
+    "music_fade_in": 1.5,           # music rises from low to its full level in the first 1.5 s
+    "music_skip_lead": True,        # skip the music file's own slow fade-in
     "music_fade_out": 1.0,
     "peak_db": -1.0,
     "main_lufs": -12.0,         # final loudness of the main part (outro clip is ~ -10.5 LUFS)

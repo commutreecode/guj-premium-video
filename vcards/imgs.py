@@ -100,7 +100,7 @@ def faces(path: Path) -> tuple:
     return tuple((b[0] / k, b[1] / k, b[2] / k, b[3] / k) for b in found if b[3] - b[1] >= 0.4 * big)
 
 
-def smart_box(photo: Photo, im: Image.Image, w: int, h: int):
+def smart_box(photo: Photo, im: Image.Image, w: int, h: int, max_upscale: float | None = None):
     """Source box that frames the face(s) head-to-chest in a w x h frame, plus the zoom anchor
     (between face and chest). Returns (box, anchor) or (None, None) when no face is found."""
     fs = faces(photo.src)
@@ -117,7 +117,7 @@ def smart_box(photo: Photo, im: Image.Image, w: int, h: int):
     if cw < (ux1 - ux0) + 1.0 * fh:                                     # several faces side by side
         cw = (ux1 - ux0) + 1.0 * fh
         ch = cw / tgt
-    min_h = h / FRAMING["max_upscale"]                                  # keep the photo sharp
+    min_h = h / (max_upscale or FRAMING["max_upscale"])                # keep the photo sharp
     if ch < min_h:
         grow = min_h - ch
         top -= grow * 0.3
@@ -144,6 +144,33 @@ def cover_anchor(photo: Photo, w: int, h: int, scale: float = 1.0):
     ax = (anchor[0] - box[0]) / (box[2] - box[0]) * w
     ay = (anchor[1] - box[1]) / (box[3] - box[1]) * h
     return im.resize(out, Image.LANCZOS, box=box), (min(max(ax, 0), w), min(max(ay, 0), h))
+
+
+def cover_reserve(photo: Photo, w: int, h: int, reserve: int, scale: float = 1.0, max_upscale: float | None = None):
+    """Photo for a w x h area whose top `reserve` px sit under a title bar: the face is framed head to chest
+    in the visible part below the bar (same size as a (h - reserve) area), and the photo continues up
+    behind the bar. If the source has too little above the head, the photo starts lower (dy > 0) so the
+    face still stays below the bar. Returns (image of size (w, h - dy) * scale, zoom anchor in that image, dy)."""
+    im = photo.load()
+    box, anchor = (None, None)
+    if not photo.crop and photo.focus is None:
+        box, anchor = smart_box(photo, im, w, h - reserve, max_upscale)
+    if box is None:
+        return cover(photo, w, h, scale), (w / 2, h / 2), 0
+    x0, y0, x1, y1 = box
+    k = (y1 - y0) / (h - reserve)            # source px per output px
+    ny0 = y0 - reserve * k
+    dy = 0
+    if ny0 < 0:                              # not enough photo above the head: start the photo lower
+        dy = int(round(-ny0 / k))
+        ny0 = 0.0
+    hh = h - dy
+    ny1 = min(float(im.height), ny0 + hh * k)
+    box = (x0, ny0, x1, ny1)
+    out = (max(1, int(round(w * scale))), max(1, int(round(hh * scale))))
+    ax = (anchor[0] - x0) / (x1 - x0) * w
+    ay = (anchor[1] - ny0) / (ny1 - ny0) * hh
+    return im.resize(out, Image.LANCZOS, box=box), (min(max(ax, 0), w), min(max(ay, 0), hh)), dy
 
 
 def cover(photo: Photo, w: int, h: int, scale: float = 1.0) -> Image.Image:

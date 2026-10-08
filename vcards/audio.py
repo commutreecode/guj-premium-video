@@ -132,6 +132,31 @@ def normalise_voice(x: np.ndarray) -> np.ndarray:
     return y
 
 
+def _music_start(mus: np.ndarray) -> int:
+    """Sample where the music reaches its normal level (skips a slow fade-in at the start of the file)."""
+    db, hop = _frames_db(mus.mean(axis=1), SR, 0.1)
+    if not len(db):
+        return 0
+    ref = float(np.median(db))
+    idx = np.nonzero(db >= ref - 4.0)[0]
+    i = int(idx[0]) if len(idx) else 0
+    return int(i * hop * SR) if i * hop < 10 else 0
+
+
+def _loop(mus: np.ndarray, n: int, xfade: float = 1.5) -> np.ndarray:
+    """Repeat the music to n samples with a crossfade at each repeat (no gap, no click)."""
+    if len(mus) >= n:
+        return mus[:n]
+    f = min(int(xfade * SR), len(mus) // 4)
+    out = mus.copy()
+    ramp = np.linspace(0, 1, f, dtype=np.float32)[:, None]
+    while len(out) < n:
+        head = mus[:f] * ramp
+        out[-f:] = out[-f:] * (1 - ramp) + head
+        out = np.concatenate([out, mus[f:]])
+    return out[:n]
+
+
 SEG_GAP = 0.35   # silence between two voice segments placed on the same card
 
 
@@ -170,15 +195,16 @@ def build_mix(total_s: float, placements, voice: np.ndarray | None, music_path: 
     out = np.stack([mono, mono], axis=1)
     if music_path:
         mus = decode(music_path, SR, 2)
+        if len(mus) and AUDIO.get("music_skip_lead"):
+            mus = mus[_music_start(mus):]
         if len(mus):
-            reps = int(np.ceil(n / len(mus)))
-            mus = np.tile(mus, (reps, 1))[:n]
+            mus = _loop(mus, n)
             rms = float(np.sqrt((mus ** 2).mean())) or 1e-6
             target = 10 ** ((AUDIO["voice_rms_db"] - AUDIO["music_below_voice_db"]) / 20)
             mus = mus * (target / rms)
             fi, fo = int(AUDIO["music_fade_in"] * SR), int(AUDIO["music_fade_out"] * SR)
             env = np.ones(n, np.float32)
-            env[:fi] = np.linspace(0, 1, fi)
+            env[:fi] = 0.1 + 0.9 * np.sin(np.linspace(0, np.pi / 2, fi)) ** 2   # soft: from low (-20 dB) to full
             env[n - fo:] = np.linspace(1, 0, fo)
             out += mus * env[:, None]
     pk = np.abs(out).max() if len(out) else 0

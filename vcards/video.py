@@ -1,19 +1,20 @@
 """Timeline + frame generation + FFmpeg encoding (one encode, outro concatenated)."""
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 from . import cards, imgs
-from .config import FPS, FPS_DEN, FPS_NUM, H, HOLD_EXTRA, OUTRO, TIMING, W
+from .config import FPS, FPS_DEN, FPS_NUM, FRAMING, H, HOLD_EXTRA, OUTRO, TIMING, W
 from .narration import estimate_seconds
 
 T = TIMING
-PHOTO_Y0 = 150     # gallery photo area: below the header ...
-PHOTO_H = 1110 - PHOTO_Y0   # ... down to the name band
+PHOTO_H = 1110     # gallery photo area: from the top (behind the title bar) down to the name band
+HEADER_H = 150     # title bar height: faces are framed below it
 
 
 def hold_for(scene_id: str, overrides: dict | None = None) -> float:
@@ -29,7 +30,9 @@ def plan(scenes, vo: dict | None = None, holds: dict | None = None):
     """Return timeline [{id, kind, start, dur, vo_start, vo_len}] and total seconds."""
     tl, t = [], 0.0
     for sc in scenes:
-        if sc.kind == "gallery":
+        if sc.id == "cover":
+            tl.append(dict(id=sc.id, kind="card", start=t, dur=T["cover"], vo_start=None, vo_len=0.0))
+        elif sc.kind == "gallery":
             dur = len(sc.extra["photos"]) * T["gallery_photo"]
             tl.append(dict(id=sc.id, kind="gallery", start=t, dur=dur, vo_start=None, vo_len=0.0))
         else:
@@ -66,11 +69,13 @@ class Gallery:
         self.states = states or [("static", Image.new("RGB", (W, 128), "white"))]
 
     def _base(self, i):
-        """(zoom-ready image, zoom anchor) for gallery photo i; the anchor is the face/chest point."""
+        """(zoom-ready image, zoom anchor, top offset) for gallery photo i; the anchor is the face/chest point."""
         if i not in self._cache:
             self._cache = {}
-            im, anchor = imgs.cover_anchor(self.photos[i], W, PHOTO_H, self.q)
-            self._cache[i] = (imgs.apply_privacy(im, self.ctx.privacy), anchor)
+            im, anchor, dy = imgs.cover_reserve(self.photos[i], W, PHOTO_H, HEADER_H, self.q,
+                                                FRAMING["gallery_max_upscale"] / T["zoom_end"])
+            im = im.filter(ImageFilter.UnsharpMask(radius=2, percent=50, threshold=3))   # crisper after enlarging
+            self._cache[i] = (imgs.apply_privacy(im, self.ctx.privacy), anchor, dy)
         return self._cache[i]
 
     def _strip(self, st, u):
@@ -103,11 +108,11 @@ class Gallery:
         ph = (u - i * T["gallery_photo"]) / T["gallery_photo"]
         s = 1.0 + (T["zoom_end"] - 1.0) * ph
         q = self.q
-        base, (cx, cy) = self._base(i)          # zoom towards the face, not the photo centre
+        base, (cx, cy), dy = self._base(i)      # zoom towards the face, not the photo centre
         data = (q / s, 0, q * (cx - cx / s), 0, q / s, q * (cy - cy / s))
-        photo = base.transform((W, PHOTO_H), Image.AFFINE, data, Image.BICUBIC)
+        photo = base.transform((W, PHOTO_H - dy), Image.AFFINE, data, Image.BICUBIC)
         fr = imgs.background().convert("RGBA")
-        fr.paste(photo, (0, PHOTO_Y0))
+        fr.paste(photo, (0, dy))
         fr = Image.alpha_composite(fr, self.overlay).convert("RGB")
         # rotating sub-line
         k = len(self.states)
@@ -140,8 +145,10 @@ def frames(scenes, tl, ctx, p):
         else:
             gal[sc.id] = Gallery(ctx, p, sc.extra["photos"], e["start"], e["dur"])
     starts = [e["start"] for e in tl]
-    half = T["dissolve"] / 2
     cache = {}
+
+    def xf(a, b):      # dissolve length between two cards (short one out of the cover)
+        return T["cover_xfade"] if "cover" in (a["id"], b["id"]) else T["dissolve"]
     for f in range(n):
         t = f / FPS
         i = max(0, np.searchsorted(starts, t, side="right") - 1)
@@ -151,11 +158,13 @@ def frames(scenes, tl, ctx, p):
             continue
         cur = arrs[e["id"]]
         end = e["start"] + e["dur"]
-        if i + 1 < len(tl) and tl[i + 1]["kind"] == "card" and t > end - half:
-            a = (t - (end - half)) / T["dissolve"]
+        dn = xf(e, tl[i + 1]) if i + 1 < len(tl) else 0
+        dp = xf(tl[i - 1], e) if i > 0 else 0
+        if i + 1 < len(tl) and tl[i + 1]["kind"] == "card" and t > end - dn / 2:
+            a = (t - (end - dn / 2)) / dn
             out = _blend(cur, arrs[tl[i + 1]["id"]], a)
-        elif i > 0 and tl[i - 1]["kind"] == "card" and t < e["start"] + half:
-            a = (t - (e["start"] - half)) / T["dissolve"]
+        elif i > 0 and tl[i - 1]["kind"] == "card" and t < e["start"] + dp / 2:
+            a = (t - (e["start"] - dp / 2)) / dp
             out = _blend(arrs[tl[i - 1]["id"]], cur, a)
         else:
             if e["id"] not in cache:
@@ -168,6 +177,14 @@ def frames(scenes, tl, ctx, p):
 def _blend(a, b, alpha):
     alpha = float(min(1.0, max(0.0, alpha)))
     return (a.astype(np.float32) * (1 - alpha) + b.astype(np.float32) * alpha + 0.5).astype(np.uint8)
+
+
+def _gain_to(wav: Path, lufs: float) -> float:
+    """dB gain that brings the integrated loudness of `wav` to `lufs` (measured by ffmpeg's EBU R128 meter)."""
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(wav), "-af", "ebur128", "-f", "null", "-"],
+                       capture_output=True, text=True)
+    m = re.findall(r"I:\s+(-?[\d.]+) LUFS", r.stderr)
+    return (lufs - float(m[-1])) if m else 0.0
 
 
 def outro_duration() -> float:
@@ -183,7 +200,9 @@ def encode(frame_iter, audio_wav: Path, total_dur: float, out: Path, outro: bool
     fr = f"{FPS_NUM}/{FPS_DEN}"
     cmd = ["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
            "-framerate", fr, "-i", "pipe:0", "-i", str(audio_wav)]
-    ln = f"loudnorm=I={loudness}:TP=-1.5:LRA=11," if loudness is not None else ""
+    # one fixed gain for the whole track (no loudness "pumping": the music stays at one level) + a peak limiter
+    ln = f"volume={_gain_to(audio_wav, loudness):.2f}dB,alimiter=limit=0.84:attack=5:release=50:level=false," \
+        if loudness is not None else ""
     a = (f"[1:a]{ln}aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,"
          f"apad,atrim=0:{total_dur:.4f}[a]")
     if outro:

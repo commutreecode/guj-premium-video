@@ -92,10 +92,11 @@ matched to the voice by syllables. If nearby settings disagree, `alignment.txt` 
 |---|---|
 | Card length | voice starts 0.65 s after the card starts (after the 1 s fade), 1.6–2.1 s after it (as in the original reference videos; min 3 s; intro min 2.6 s) |
 | Reading time | included above: 0.5 s on every card, +0.3–0.5 s on text-heavy cards (`HOLD_EXTRA` in `config.py`; per profile: `"hold": {"hero": 3}`) |
+| Opening | the hero card for 0.5 s, then a 0.3 s dissolve into the intro, so the first frame (the thumbnail in WhatsApp etc.) shows the candidate; also saved as `thumbnail.jpg` |
 | Card → card | 1.0 s cross-dissolve |
-| Gallery | photos below the header (y 150–1110), 2.0 s each, hard cuts, zoom 1.00 → 1.21 linear; no narration |
+| Gallery | photos fill the top too (y 0–1110, behind the title bar); faces framed below the bar (y > 150) during the whole zoom; a photo with too little above the head starts lower, enlargement capped at 2.0× at the end of the zoom (small/WhatsApp photos are framed a bit wider instead of looking blurred) + light sharpening, 2.0 s each, hard cuts, zoom 1.00 → 1.21 linear; no narration |
 | Gallery sub-line | rotates: hobbies (centred; scrolls if too long) → sect → year/status/height, all vertically centred |
-| Audio | voice levelled, background music ~24 dB under voice for the **whole video, outro included**; outro voice levelled to match; normalised to −12 LUFS |
+| Audio | voice levelled, background music ~16 dB under voice, rising softly from low to full level in the first 1.5 s (the file's own slow fade-in is skipped), then steady for the **whole video, outro included**; outro voice levelled to match; one fixed gain to −12 LUFS + peak limiter (no level pumping) |
 | Outro | `assets/outro/ct_premium_end_slide.mp4` (picture + its own voice; our music continues under it) |
 | Output | 1200×1500, 29.97 fps, H.264 yuv420p, AAC 44.1 kHz |
 
