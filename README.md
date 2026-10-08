@@ -11,6 +11,11 @@ Boy theme = blue `#0669A4`, girl theme = pink `#FF4081`.
 
 > **No personal data in this repo.** Real profiles, photos, PSDs and renders live in `profiles/` and `out/`, which are git-ignored.
 
+**Day-to-day use is automated:** the team fills the profile in the "Guj Premium Video" web app and clicks buttons;
+GitHub Actions in the private repo `commutreecode/guj-premium-video-auto` clones this renderer and makes the narration
+and the video (no AI, no tokens per video). This repo is the renderer only; the commands below are for testing or a
+manual render.
+
 ---
 
 ## Setup
@@ -35,8 +40,8 @@ python3 render.py profiles/<name>/profile.json
 #    -> out/<id>/tts_input.txt    paste this into ElevenLabs (Text to Speech)
 
 # 2. ElevenLabs -> Text to Speech -> paste tts_input.txt (whole text in one go) -> download MP3/WAV
-#    (always the same voice, model and settings; keep the blank lines between blocks)
-#    Voice: <TBD>   Model: <TBD>   Settings: <TBD>
+#    (model Eleven v4, the team's Instant Clone voice, same settings every time; keep the [long pause] tags
+#    and the blank lines between blocks; never edit the text inside ElevenLabs)
 
 # 3. merge
 python3 render.py profiles/<name>/profile.json --voice voice.wav
@@ -55,7 +60,14 @@ A card can take several pieces, e.g. `"work": [[42.0, 45.3], [27.5, 32.6]]` (pla
 
 Background music `assets/music/bg_music.mp3` is used by default (`--music FILE` to change, `--no-music` to skip).
 
-Options: `--spans FILE` (manual voice split), `--cards-only` (PNGs + narration only), `--fast` (quick encode), `--no-outro`, `--out DIR`.
+Options: `--spans FILE` (manual voice split), `--cards-only` (PNGs + narration only), `--narration-only`
+(narration.txt / tts_input.txt / scenes.json without photos — used by the automation), `--fast` (quick encode),
+`--no-outro`, `--out DIR`.
+
+**Contract with the automation** (keep these stable): `--narration-only` writes `tts_input.txt` + `scenes.json`
+(ids of the narrated cards); a final render prints `[progress] N` (0–100) lines while making frames (the app's
+progress bar); a voice that misses a block stops the render with a line starting `VOICE CHECK:` (shown to the team
+as "Check voice: …").
 
 ## Narration style (default, team-approved)
 
@@ -89,7 +101,7 @@ Options: `--spans FILE` (manual voice split), `--cards-only` (PNGs + narration o
 
 `vcards/align.py`: with `[long pause]` markers the card boundaries are the longest gaps; otherwise each phrase is
 matched to the voice by syllables. If nearby settings disagree, `alignment.txt` marks the cards `<-- check`
-(the automation then uploads `final_CHECK.mp4`).
+(the automation then uploads the video as `<Name_En>_CHECK.mp4` and shows "Check voice: please watch cards …").
 
 ## Timing rules
 
@@ -118,6 +130,7 @@ Every section is optional; missing sections are skipped.
 | `theme` | `boy` \| `girl` |
 | `privacy` | `clear` \| `blur` \| `hide` — applies to the candidate's own photos; `hide` also drops the gallery |
 | `name`, `first_name` | `first_name` is used in "… નો પરિચય" titles |
+| `name_en` | full name in English; not drawn, the automation names the video file `<Name_En>.mp4` |
 | `native_village`, `city` | shown as "(ગામઃ …, હાલઃ …)" |
 | `birth_year` or `dob`, `marital_status`, `height` | info line, e.g. `2000, Single, 5'8"` |
 | `sect` | e.g. "દેરાવાસી જૈન" |
@@ -191,6 +204,10 @@ vcards/cards.py      every card layout (PSD coordinates)
 vcards/narration.py  Gujarati narration templates
 vcards/scenes.py     JSON -> ordered scenes
 vcards/video.py      timeline, dissolves, gallery zoom/ticker, ffmpeg encode + outro concat
-vcards/audio.py      pause detection, voice-to-card alignment, mix
+vcards/audio.py      pause detection, music loop/fade, final mix
+vcards/align.py      voice -> cards split ([long pause] markers, phrase matching, VOICE CHECK)
+vcards/syllables.py  Gujarati syllable counter (phrase matching)
+tests/run_tests.py   self-test (also on GitHub: .github/workflows/test.yml)
+forms/               Google Form v1 / v2.1 Apps Scripts (old intake; the team now uses the web app)
 tools/make_sample_photos.py   regenerates the placeholder sample photos
 ```

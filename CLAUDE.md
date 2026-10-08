@@ -26,10 +26,18 @@
 
 ## Narration
 Default style (team-approved, Oct 2026, Eleven v4): see "Narration style" in README.md — every block except the
-last ends with `[long pause]` (keeps the voice split reliable). If the team edits the
+last ends with `[long pause]` (keeps the voice split reliable). **Team rule: the voice stops after the occupation
+card** (`VOICE_LAST_SECTION = "work"` in `vcards/config.py`): Income / Property and the gallery have music only. If the team edits the
 TTS text for a profile, put the same text into `out/<id>/narration.txt` (keep the `[NN id]` labels) before
 running with `--voice`, so the voice is split on the right cards.
 
 ## Never silently degrade
 If a feature can't work (face detector, RAQM), the render must stop with an error. Run `python3 tests/run_tests.py`
 after any change; keep `requirements.txt` upper bounds until a new major version passes the tests.
+
+## The automation depends on this repo
+The private repo `commutreecode/guj-premium-video-auto` (team web app + GitHub Actions) clones `main` of this repo for
+every run, so a push here changes the next video immediately. Keep stable: `--narration-only` output
+(`tts_input.txt`, `scenes.json`), the `[progress] N` stdout lines, the `VOICE CHECK:` error prefix, `--voice/--out`
+options. If the narration wording/rules change, bump `NARRATION_STYLE` in that repo's `auto.py` too.
+Push only after `python3 tests/run_tests.py` passes (it also runs on GitHub on every push and every Monday).
