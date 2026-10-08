@@ -50,6 +50,11 @@ def main():
     starts = [round(a, 2) for a, _ in spans]
     check("real v4 voice: split by card markers", method.startswith("card markers") and not unsure, method)
     check("real v4 voice: card starts", all(abs(a - b) < 0.02 for a, b in zip(starts, fx["expected_starts"])), str(starts))
+    try:   # the narration has one block more than the voice (ElevenLabs stopped early): must stop, not guess
+        align.split(blocks + ["x."], [tuple(g) for g in fx["gaps"]], fx["total"])
+        check("voice with a block missing is refused", False, "split without error")
+    except align.VoiceMismatch as e:
+        check("voice with a block missing is refused", "VOICE CHECK" in str(e), str(e)[:80])
 
     p = json.loads(sample.read_text(encoding="utf-8"))
     bl = [s.text for s in scenes.build(p, ROOT / "samples", images=False)[0] if s.text]

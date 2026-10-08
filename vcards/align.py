@@ -117,12 +117,56 @@ def by_phrases(blocks, segs, glen, w_en, over, gapw, max_p=5, max_c=4):
     return [first[b] for b in range(len(blocks))]
 
 
+class VoiceMismatch(SystemExit):
+    """The voice clearly has fewer parts than the narration (a block was not spoken)."""
+
+
+def marker_count(glen) -> int:
+    """Number of card gaps that clearly stand out from the gaps inside cards (0 if there is no clear step)."""
+    s = sorted(glen, reverse=True)
+    best, m = 0.0, 0
+    for i in range(len(s) - 1):
+        if s[i] >= 1.0 and s[i + 1] > 0 and s[i] / s[i + 1] > best:
+            best, m = s[i] / s[i + 1], i + 1
+    return m if best >= MARKED_RATIO else 0
+
+
+def missing_blocks(blocks, segs, glen, m):
+    """The voice has m+1 parts (split at its m card gaps) for len(blocks) blocks: guess which block is missing."""
+    cut = sorted(sorted(range(len(glen)), key=lambda i: -glen[i])[:m])
+    starts = [0] + [i + 1 for i in cut]
+    dur = [b - a for a, b in _starts_to_spans(starts, segs)]
+    est = [sum(max(0.5, phrase_syllables(p, PARAMS["w_en"])) for p in (phrases(b) or ["."])) for b in blocks]
+    if len(blocks) - len(dur) != 1:
+        return None, dur
+    costs = []
+    for j in range(len(blocks)):
+        e = est[:j] + est[j + 1:]
+        k = sum(dur) / sum(e)
+        costs.append(sum(((d - k * x) / max(k * x, 0.6)) ** 2 for d, x in zip(dur, e)))
+    order = sorted(range(len(costs)), key=costs.__getitem__)
+    sure = len(order) < 2 or costs[order[0]] * 2.5 < costs[order[1]]
+    return (order[0] if sure else None), dur
+
+
 def split(blocks, gaps, total):
     """-> (spans [(start, end)] per card, method, uncertain card indexes)."""
     segs, glen = chunks(gaps, total)
     st = by_markers(len(blocks), segs, glen)
     if st is not None:
         return _starts_to_spans(st, segs), "card markers ([long pause])", []
+    m = marker_count(glen)
+    if m and m + 1 < len(blocks) and m + 1 >= len(blocks) / 2:
+        # the [long pause] gaps are clear, but there are fewer parts than cards: some text was not spoken.
+        # Never guess here (every later card would get the wrong sentence) - ask for a new voice.
+        j, _ = missing_blocks(blocks, segs, glen, m)
+        n_miss = len(blocks) - m - 1
+        which = (f"Not spoken: card {j + 1} \"{strip_tags(blocks[j])[:50]}…\"" if j is not None else
+                 f"{n_miss} block(s) not spoken (often the voice stops early: it must end with "
+                 f"\"{strip_tags(blocks[-1])[:50]}…\")")
+        raise VoiceMismatch(f"VOICE CHECK: the voice has {m + 1} parts but the narration has {len(blocks)}. {which}. "
+                            "Make the voice again from the WHOLE narration (all blocks, with the [long pause] tags) "
+                            "and check that it ends with the last block.")
     st = by_phrases(blocks, segs, glen, **PARAMS)
     if st is None:
         raise SystemExit(f"Voice has only {len(segs)} speech parts for {len(blocks)} cards: "
