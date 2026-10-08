@@ -44,7 +44,7 @@ def plan(scenes, vo: dict | None = None, holds: dict | None = None):
                 lead, mn, after = T["intro_lead"], T["min_intro"], T["intro_tail"]
             else:
                 lead, mn, after = T["lead"], T["min_card"], T["tail"] + hold_for(sc.id, holds)
-            dur = max(mn, lead + vlen + after) if vlen else mn
+            dur = max(mn, lead + vlen + after) if vlen else (mn if sc.id == "intro" else max(mn, T["silent_card"]))
             tl.append(dict(id=sc.id, kind="card", start=t, dur=round(dur, 3),
                            vo_start=round(t + lead, 3) if vlen else None, vo_len=round(vlen, 3)))
         t += tl[-1]["dur"]

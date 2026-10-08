@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import cards
+from .config import VOICE_LAST_SECTION
 from .narration import scene_text
 
 DEFAULT_ORDER = ["intro", "hero", "dada_dadi", "nana_nani", "parents", "mother", "father",
@@ -38,7 +39,11 @@ def build(p: dict, base: Path, images: bool = True) -> tuple[list[Scene], cards.
         return f() if images else None
 
     out: list[Scene] = []
-    for sec in p.get("sections", DEFAULT_ORDER):
+    order = list(p.get("sections", DEFAULT_ORDER))
+    # sections after the occupation card are shown with music only (no narration, no voice)
+    silent = set(order[order.index(VOICE_LAST_SECTION) + 1:]) if VOICE_LAST_SECTION in order else set()
+    for sec in order:
+        n0 = len(out)
         if sec == "intro":
             out.append(Scene("intro", "card", mk(lambda: cards.intro(ctx)), scene_text("intro", p, None)))
         elif sec == "hero":
@@ -64,4 +69,7 @@ def build(p: dict, base: Path, images: bool = True) -> tuple[list[Scene], cards.
             if gal and ctx.privacy != "hide":
                 out.append(Scene("gallery", "gallery",
                                  extra={"photos": [ctx.photo(g) for g in gal] if images else gal}))
+        if sec in silent:
+            for sc in out[n0:]:
+                sc.text = ""
     return out, ctx

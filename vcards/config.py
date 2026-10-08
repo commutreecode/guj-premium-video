@@ -58,7 +58,12 @@ TIMING = {
     "hold": 0.5,            # extra reading time after the narration, every card (s)
     "cover": 0.5,           # hero card shown first, so the video's first frame (thumbnail) is the candidate
     "cover_xfade": 0.3,     # quick dissolve cover -> intro
+    "silent_card": 4.5,     # length of a card shown with music only (no voice), e.g. Income / Property
 }
+
+# Team rule (Oct 2026): the voice stops after the occupation card. Every card after this section in the video
+# (Income / Property, gallery) has background music only and is left out of the narration.
+VOICE_LAST_SECTION = "work"
 
 # extra reading time on top of TIMING["hold"] for text-heavy cards (s).
 # A profile can override per card with  "hold": {"hero": 4, ...}  in its JSON.

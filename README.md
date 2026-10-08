@@ -74,6 +74,11 @@ Options: `--spans FILE` (manual voice split), `--cards-only` (PNGs + narration o
 
 - `[long pause]` is an **Eleven v4 audio tag** (not spoken). It makes ElevenLabs leave clearly longer gaps
   between cards (measured 1.1–1.85 s vs ≤ 0.8 s inside cards), so the voice is split per card reliably.
+- **The voice stops after the occupation card** (team rule, Oct 2026): Income / Property and the photo gallery are
+  shown with background music only (property card 4.5 s) and are not part of the narration
+  (`VOICE_LAST_SECTION`, `TIMING["silent_card"]` in `vcards/config.py`).
+- If a voice has fewer parts than the narration (a block was not spoken), the render stops with `VOICE CHECK: …`
+  instead of putting every later sentence on the wrong card.
 - In the education / occupation lines the first name is said without a title (`CA હિનલ` → `હિનલ`).
 - Villages, city, birth year, marital status, height, sect, colleges and the sibling's occupation are shown on
   the cards but not spoken. Templates: `vcards/narration.py`.
