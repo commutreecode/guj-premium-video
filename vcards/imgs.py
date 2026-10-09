@@ -28,24 +28,55 @@ SS = 4  # supersampling for anti-aliased shapes
 
 
 class Photo:
-    """A photo reference from JSON: "file.jpg" or {"src": ..., "crop": [x0,y0,x1,y1], "focus": [fx,fy]}.
-    crop is fractional (0-1) of the source image; focus is used when crop is absent."""
+    """A photo reference from JSON: "file.jpg" or
+    {"src": ..., "rotate": 90, "trim": [x0,y0,x1,y1], "crop": [x0,y0,x1,y1], "focus": [fx,fy]}.
+    rotate (0/90/180/270, clockwise) and trim (fractions 0-1 of the rotated photo) come from the app's photo editor:
+    they are applied first, then the photo is framed as usual (head to chest when there is no crop/focus).
+    crop is fractional (0-1) of the (rotated, trimmed) image; focus is used when crop is absent."""
 
     def __init__(self, spec, base: Path):
         if isinstance(spec, str):
             spec = {"src": spec}
         self.src = (base / spec["src"]).resolve()
+        self.rotate, self.trim = edit_of(spec)
         self.crop = spec.get("crop")
         self.focus = spec.get("focus")          # None = automatic (face detection)
         if not self.src.exists():
             raise FileNotFoundError(f"photo not found: {self.src}")
 
+    @property
+    def key(self) -> tuple:
+        """(src, rotate, trim): cache key of the edited photo."""
+        return self.src, self.rotate, self.trim
+
     def load(self) -> Image.Image:
-        return load(self.src)
+        return load(*self.key)
+
+
+def edit_of(spec: dict):
+    """Validated (rotate, trim) of a photo spec; a wrong value stops the render instead of guessing."""
+    rot = spec.get("rotate") or 0
+    if rot not in (0, 90, 180, 270):
+        raise ValueError(f"photo {spec.get('src')}: rotate must be 0, 90, 180 or 270 (got {rot!r})")
+    t = spec.get("trim")
+    if t is None:
+        return rot, None
+    try:
+        t = tuple(float(v) for v in t)
+    except (TypeError, ValueError):
+        t = ()
+    if len(t) != 4 or not (0 <= t[0] < t[2] <= 1 and 0 <= t[1] < t[3] <= 1) or t[2] - t[0] < 0.05 or t[3] - t[1] < 0.05:
+        raise ValueError(f"photo {spec.get('src')}: trim must be [x0, y0, x1, y1] fractions 0-1 (got {spec.get('trim')!r})")
+    if t == (0.0, 0.0, 1.0, 1.0):
+        t = None
+    return rot, t
+
+
+_ROTATE = {90: Image.Transpose.ROTATE_270, 180: Image.Transpose.ROTATE_180, 270: Image.Transpose.ROTATE_90}  # clockwise
 
 
 @lru_cache(maxsize=64)
-def load(path: Path) -> Image.Image:
+def _load_file(path: Path) -> Image.Image:
     im = Image.open(path)
     im = ImageOps.exif_transpose(im)
     if im.mode in ("RGBA", "LA", "P"):
@@ -55,6 +86,19 @@ def load(path: Path) -> Image.Image:
     return im.convert("RGB")
 
 
+@lru_cache(maxsize=64)
+def load(path: Path, rotate: int = 0, trim: tuple | None = None) -> Image.Image:
+    """The photo upright (EXIF), then rotated clockwise and trimmed as set in the app's photo editor."""
+    im = _load_file(path)
+    if rotate:
+        im = im.transpose(_ROTATE[rotate])
+    if trim:
+        w, h = im.size
+        box = (round(trim[0] * w), round(trim[1] * h), round(trim[2] * w), round(trim[3] * h))
+        im = im.crop(box)
+    return im
+
+
 def _dnn(img):
     h, w = img.shape[:2]
     _NET.setInput(cv2.dnn.blobFromImage(cv2.resize(img, (300, 300)), 1.0, (300, 300), (104, 177, 123)))
@@ -62,12 +106,12 @@ def _dnn(img):
 
 
 @lru_cache(maxsize=128)
-def faces(path: Path) -> tuple:
-    """Face boxes (x0, y0, x1, y1) in source pixels. OpenCV DNN detector on square tiles along the long
-    side (small faces in tall photos) + the whole image; Haar cascade fallback; background faces dropped."""
+def faces(path: Path, rotate: int = 0, trim: tuple | None = None) -> tuple:
+    """Face boxes (x0, y0, x1, y1) in pixels of the (rotated, trimmed) photo. OpenCV DNN detector on square tiles
+    along the long side (small faces in tall photos) + the whole image; Haar cascade fallback; background faces dropped."""
     if cv2 is None:
         return ()
-    im = load(path)
+    im = load(path, rotate, trim)
     k = min(1.0, 1200 / max(im.size))
     small = im.resize((max(1, int(im.width * k)), max(1, int(im.height * k))))
     bgr = cv2.cvtColor(np.asarray(small), cv2.COLOR_RGB2BGR)
@@ -103,7 +147,7 @@ def faces(path: Path) -> tuple:
 def smart_box(photo: Photo, im: Image.Image, w: int, h: int, max_upscale: float | None = None):
     """Source box that frames the face(s) head-to-chest in a w x h frame, plus the zoom anchor
     (between face and chest). Returns (box, anchor) or (None, None) when no face is found."""
-    fs = faces(photo.src)
+    fs = faces(*photo.key)
     if not fs:
         return None, None
     iw, ih = im.size

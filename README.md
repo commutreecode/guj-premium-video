@@ -155,6 +155,11 @@ the zoom (`FRAMING` in `config.py`), so very small photos are framed a little wi
 `{"src": …, "crop": [x0, y0, x1, y1]}` (fractions 0–1 of the source image).
 Without crop/focus the photo is centre-cropped with focus `[0.5, 0.35]`.
 
+**Photo edits from the app** (✎ on a photo box): `{"src": …, "rotate": 90, "trim": [x0, y0, x1, y1]}`.
+`rotate` = 0/90/180/270 clockwise, `trim` = fractions 0–1 of the rotated photo. Both are applied first (the uploaded
+file is never changed), then the photo is framed as usual (head to chest, couple/landscape frames, gallery zoom), so
+the approved look stays the same. A wrong value stops the render with an error.
+
 One photo in a family card → centred single frame (landscape photos get a wide frame); two → side by side.
 
 ## Intake form (Google Form → Sheet → profile folder)

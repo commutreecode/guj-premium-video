@@ -34,10 +34,42 @@ def main():
         except Exception as e:  # noqa: BLE001
             check("face detector runs", False, repr(e))
 
+    # photo editor of the app: "rotate" (clockwise) and "trim" are applied before the normal framing
+    ed = ROOT / "out" / "_edit.png"
+    im0 = Image.new("RGB", (400, 300), "white")
+    im0.paste((255, 0, 0), (0, 0, 100, 50))                      # red block top-left
+    im0.save(ed)
+    e = imgs.Photo({"src": ed.name, "rotate": 90, "trim": [0, 0, 1, 0.5]}, ed.parent).load()
+    check("photo edit: rotate 90 + trim top half", e.size == (300, 200) and e.getpixel((290, 10)) == (255, 0, 0), str(e.size))
+    check("photo edit: unedited photo unchanged", imgs.Photo(ed.name, ed.parent).load().size == (400, 300))
+    for bad in ({"rotate": 45}, {"trim": [0.6, 0, 0.5, 1]}, {"trim": [0, 0, 1]}):
+        try:
+            imgs.Photo(dict(src=ed.name, **bad), ed.parent)
+            check(f"photo edit: bad value refused {bad}", False)
+        except ValueError:
+            check(f"photo edit: bad value refused {bad}", True)
+
     sample = ROOT / "samples" / "profile.example.json"
     r = subprocess.run([sys.executable, "render.py", str(sample), "--cards-only"], cwd=ROOT, capture_output=True, text=True)
     cards = sorted((ROOT / "out" / "sample-girl" / "cards").glob("*.png"))
     check("sample cards render", r.returncode == 0 and len(cards) == 11, f"{len(cards)} cards; {r.stderr[-200:]}")
+
+    pe = json.loads(sample.read_text(encoding="utf-8"))          # same sample with edited photos (as the app writes them)
+    pe["id"] = "_selftest-edit"
+    pe["photos"]["gallery"][0] = {"src": "photos/g1.jpg", "rotate": 90}
+    pe["parents"]["photos"][0] = {"src": "photos/mother.jpg", "trim": [0.1, 0.0, 0.9, 0.8]}
+    pj = ROOT / "samples" / "_selftest_edit.json"
+    pj.write_text(json.dumps(pe, ensure_ascii=False), encoding="utf-8")
+    try:
+        r = subprocess.run([sys.executable, "render.py", str(pj), "--cards-only"], cwd=ROOT, capture_output=True, text=True)
+    finally:
+        pj.unlink()
+    check("sample cards render with edited photos", r.returncode == 0, r.stderr[-200:])
+    try:
+        g_im, _, _ = imgs.cover_reserve(imgs.Photo(pe["photos"]["gallery"][0], ROOT / "samples"), 1200, 1110, 150)
+        check("gallery photo with rotate frames", g_im.width == 1200, str(g_im.size))
+    except Exception as ex:  # noqa: BLE001
+        check("gallery photo with rotate frames", False, repr(ex))
 
     tts = (ROOT / "out" / "sample-girl" / "tts_input.txt").read_text(encoding="utf-8").strip().split("\n\n")
     check("narration: [long pause] after every block except the last",

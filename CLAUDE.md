@@ -39,5 +39,6 @@ after any change; keep `requirements.txt` upper bounds until a new major version
 The private repo `commutreecode/guj-premium-video-auto` (team web app + GitHub Actions) clones `main` of this repo for
 every run, so a push here changes the next video immediately. Keep stable: `--narration-only` output
 (`tts_input.txt`, `scenes.json`), the `[progress] N` stdout lines, the `VOICE CHECK:` error prefix, `--voice/--out`
-options. If the narration wording/rules change, bump `NARRATION_STYLE` in that repo's `auto.py` too.
+options, `<out>/thumbnail.jpg` (uploaded as the video's thumbnail) and the photo spec fields `rotate` / `trim`
+(written by the app's photo editor). If the narration wording/rules change, bump `NARRATION_STYLE` in that repo's `auto.py` too.
 Push only after `python3 tests/run_tests.py` passes (it also runs on GitHub on every push and every Monday).
