@@ -107,7 +107,7 @@ matched to the voice by syllables. If nearby settings disagree, `alignment.txt` 
 
 | Item | Rule |
 |---|---|
-| Card length | voice starts 0.65 s after the card starts (after the 1 s fade), 1.6–2.1 s after it (as in the original reference videos; min 3 s; intro min 2.6 s) |
+| Card length | voice starts 0.65 s after the card's start (the 1 s cross-dissolve is centred on the cut, so that is 0.15 s after the dissolve has finished), 1.6–2.1 s after it (as in the original reference videos; min 3 s; intro min 2.6 s) |
 | Reading time | included above: 0.5 s on every card, +0.3–0.5 s on text-heavy cards (`HOLD_EXTRA` in `config.py`; per profile: `"hold": {"hero": 3}`) |
 | Opening | the hero card for 0.5 s, then a 0.3 s dissolve into the intro, so the first frame (the thumbnail in WhatsApp etc.) shows the candidate; also saved as `thumbnail.jpg` |
 | Card → card | 1.0 s cross-dissolve |
@@ -129,7 +129,7 @@ Every section is optional; missing sections are skipped.
 | `id`, `version` | `id` names the output folder |
 | `theme` | `boy` \| `girl` |
 | `privacy` | `clear` \| `blur` \| `hide` — applies to the candidate's own photos; `hide` also drops the gallery |
-| `name`, `first_name` | `first_name` is used in "… નો પરિચય" titles |
+| `name`, `first_name` | `first_name` is used in "… નો પરિચય" titles. The on-screen header/intro text is "કોમ્યુટ્રી CT પ્રિમિયમ મેમ્બર" (as in the PSD); the narration says "કોમ્યુટ્રી સી ટી પ્રીમિયમ મેમ્બર" (spelled for the TTS) — both intended |
 | `name_en` | full name in English; not drawn, the automation names the video file `<Name_En>.mp4` |
 | `native_village`, `city` | shown as "(ગામઃ …, હાલઃ …)" |
 | `birth_year` or `dob`, `marital_status`, `height` | info line, e.g. `2000, Single, 5'8"` |
@@ -138,17 +138,18 @@ Every section is optional; missing sections are skipped.
 | `dada_dadi`, `nana_nani` | `display_name`, `village`, `photos[1–2]` |
 | `parents` | `display_name`, `village`, `city`, `sect`, `photos[1–2]` |
 | `mother`, `father` | `name`, `photo`, `occupation` (string or list of lines) |
-| `siblings[]` | `relation` (`bahen-banevi`, `bhai-bhabhi`, `mota-bhai-bhabhi`, `bhai`, `bahen`), `display_name`, `place`, `photos[1–2]`, `details[{who, text}]` |
+| `siblings[]` | any number of entries, one card each (the team app allows 5, the old form 2); `relation` (`bahen-banevi`, `bhai-bhabhi`, `mota-bhai-bhabhi`, `bhai`, `bahen`), `display_name`, `place`, `photos[1–2]`, `details[{who, text}]` |
 | `education[]` | `degree`, `institute`, `photo` (first photo found is used) |
 | `work` | `style: business` → `label`, `logo`, `company`, `desc`, `photo`; `style: bullets` → `bullets[]` |
-| `property[]` | bullet lines |
+| `property[]` | bullet lines (the app/form put `Income: …` as the first line when an income is given) |
 | `hobbies[]` | gallery ticker |
 | `hold` | optional per-card reading time override in seconds, e.g. `{"hero": 6, "sibling": 4}` |
 | `sections[]` | optional custom order / subset of: intro, hero, dada_dadi, nana_nani, parents, mother, father, siblings, education, work, property, gallery |
 
 **Automatic framing:** photos without `crop`/`focus` are framed **head to chest** using face detection
 (OpenCV DNN, `assets/models/`), also for couple and group photos; the gallery zoom moves towards the face.
-Low-resolution photos are never enlarged more than 2.2×, so very small photos stay a little wider.
+Low-resolution photos are never enlarged more than 2.2× on the cards; in the gallery the limit is 2.0× at the end of
+the zoom (`FRAMING` in `config.py`), so very small photos are framed a little wider instead of looking blurred.
 
 **Photo spec:** `"photos/x.jpg"` or `{"src": "photos/x.jpg", "focus": [fx, fy]}` or
 `{"src": …, "crop": [x0, y0, x1, y1]}` (fractions 0–1 of the source image).
