@@ -107,7 +107,7 @@ matched to the voice by syllables. If nearby settings disagree, `alignment.txt` 
 
 | Item | Rule |
 |---|---|
-| Card length | voice starts 0.65 s after the card's start (the 1 s cross-dissolve is centred on the cut, so that is 0.15 s after the dissolve has finished), 1.6–2.1 s after it (as in the original reference videos; min 3 s; intro min 2.6 s) |
+| Card length | voice starts 0.65 s after the card's start (the 1 s cross-dissolve is centred on the cut, so that is 0.15 s after the dissolve has finished), 1.55–2.05 s after it (tail 1.05 + hold 0.5 + 0–0.5 extra; as in the original reference videos; min 3 s; intro min 2.6 s) |
 | Reading time | included above: 0.5 s on every card, +0.3–0.5 s on text-heavy cards (`HOLD_EXTRA` in `config.py`; per profile: `"hold": {"hero": 3}`) |
 | Opening | the hero card for 0.5 s, then a 0.3 s dissolve into the intro, so the first frame (the thumbnail in WhatsApp etc.) shows the candidate; also saved as `thumbnail.jpg` |
 | Card → card | 1.0 s cross-dissolve |
@@ -173,7 +173,8 @@ Expected result: `forms/EXPECTED_FORM_LAYOUT.md`.
 1. script.google.com → New project → paste `forms/gpv_form.gs` → run `createGujPremiumForm` (authorise).
 2. The log prints the form, share and Sheet links, plus the **file-upload questions** to add by hand
    (Apps Script cannot create upload questions). Use exactly the titles printed, in the sections named.
-3. Each submission creates `Drive / Guj Premium Video - Profiles / <id>_<first name>/` with `profile.json` +
+3. Each submission creates `Drive / Guj Premium Video - Profiles / <id>_<first name>/` (`<id>` = ProfileID from the
+   CommuTree link, or `gpv-<sheet row>` without a link) with `profile.json` +
    `photos/` (hero, g1…g10, dadi, dada, dd_couple, nani, nana, nn_couple, mata, pita, par_couple, s1_*, s2_*,
    edu, work, logo) and fills the Sheet's `JSON` and `Folder` columns.
 4. Download that folder as a zip → `profiles/<name>/` → render.
