@@ -151,6 +151,12 @@ Every section is optional; missing sections are skipped.
 Low-resolution photos are never enlarged more than 2.2× on the cards; in the gallery the limit is 2.0× at the end of
 the zoom (`FRAMING` in `config.py`), so very small photos are framed a little wider instead of looking blurred.
 
+**Photo types:** JPEG, PNG, WEBP, HEIC/HEIF (pillow-heif), AVIF, GIF (first frame), BMP, TIFF; 16-bit, CMYK and
+transparent images are converted to 8-bit RGB on white.
+
+**Gujarati conjuncts:** Akhand's half-શ looks like ર, so શ્ + consonant clusters (શ્વ, શ્ચ, શ્ન, શ્મ …, not શ્ર) are
+drawn with Anek Gujarati at the same letter height (`GU_FALLBACK` in `vcards/text.py`).
+
 **Photo spec:** `"photos/x.jpg"` or `{"src": "photos/x.jpg", "focus": [fx, fy]}` or
 `{"src": …, "crop": [x0, y0, x1, y1]}` (fractions 0–1 of the source image).
 Without crop/focus the photo is centre-cropped with focus `[0.5, 0.35]`.

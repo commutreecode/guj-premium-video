@@ -22,6 +22,11 @@ def main():
     from PIL import features, Image
     check("Pillow has RAQM (Gujarati shaping)", features.check("raqm"))
 
+    from vcards.text import Style, runs
+    r = runs("વિશ્વાસ શ્રી", Style())
+    check("શ્વ drawn with Anek (Akhand's half-શ reads as ર)", [c for k, _, _, c in r if k == "anek_b"] == ["શ્વા"], str(r))
+    check("શ્ર stays in Akhand", r[-1][0] == "akhand_xb" and r[-1][3].endswith("શ્રી"), str(r))
+
     from vcards import imgs
     check("face detector loads (OpenCV DNN)", imgs.cv2 is not None)
     if imgs.cv2 is not None:
@@ -48,6 +53,31 @@ def main():
             check(f"photo edit: bad value refused {bad}", False)
         except ValueError:
             check(f"photo edit: bad value refused {bad}", True)
+
+    # every photo type the app may upload as it is (the browser cannot convert HEIC / TIFF on Windows)
+    src = Image.new("RGB", (64, 48), (200, 30, 30))
+    fmts = {"jpg": "JPEG", "png": "PNG", "webp": "WEBP", "gif": "GIF", "bmp": "BMP", "tif": "TIFF"}
+    if features.check("avif"):
+        fmts["avif"] = "AVIF"
+    try:
+        import pillow_heif  # noqa: F401
+        fmts["heic"] = "HEIF"
+    except ImportError:
+        pass
+    bad = []
+    for ext, fmt in fmts.items():
+        f = ROOT / "out" / f"_fmt.{ext}"
+        try:
+            src.save(f, fmt)
+            im = imgs.load(f)
+            if im.mode != "RGB" or im.size != (64, 48) or im.getpixel((5, 5))[0] < 150:
+                bad.append(ext)
+        except Exception as ex:  # noqa: BLE001
+            bad.append(f"{ext}: {ex!r}"[:60])
+    Image.new("I;16", (32, 32), 40000).save(ROOT / "out" / "_fmt16.png")
+    if imgs.load(ROOT / "out" / "_fmt16.png").getpixel((1, 1))[0] < 120:
+        bad.append("16-bit png")
+    check("photo types load: " + ", ".join(fmts) + ", 16-bit png", not bad, ", ".join(bad))
 
     sample = ROOT / "samples" / "profile.example.json"
     r = subprocess.run([sys.executable, "render.py", str(sample), "--cards-only"], cwd=ROOT, capture_output=True, text=True)

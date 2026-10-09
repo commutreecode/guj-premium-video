@@ -77,8 +77,15 @@ _ROTATE = {90: Image.Transpose.ROTATE_270, 180: Image.Transpose.ROTATE_180, 270:
 
 @lru_cache(maxsize=64)
 def _load_file(path: Path) -> Image.Image:
+    """Any photo the team uploads: JPEG, PNG, WEBP, HEIC/HEIF (pillow-heif), AVIF, GIF (first frame), BMP, TIFF ...
+    16-bit / CMYK / transparent images are brought to plain 8-bit RGB on white."""
     im = Image.open(path)
+    im.seek(0)                                   # animated GIF / multi-page TIFF: the first picture
     im = ImageOps.exif_transpose(im)
+    if im.mode in ("I;16", "I;16B", "I;16L", "I", "F"):
+        im = im.convert("I").point(lambda v: v * (1 / 256) if im.mode.startswith("I;16") else v).convert("L")
+    if im.mode == "PA":
+        im = im.convert("RGBA")
     if im.mode in ("RGBA", "LA", "P"):
         im = im.convert("RGBA")
         bg = Image.new("RGBA", im.size, (255, 255, 255, 255))

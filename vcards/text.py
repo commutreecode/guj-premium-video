@@ -3,6 +3,9 @@
 Akhand Gujarati has no Latin letters, so every line is split into runs:
 Gujarati letters -> `gu` font, Latin letters -> `lat` font. Digits, spaces and
 punctuation stay in the current run when that font has the glyph.
+Akhand's half-શ looks like ર (શ્વ in વિશ્વાસ reads "વિરવાસ"), so a cluster શ્ + consonant (not શ્ર, which Akhand
+draws correctly) is drawn with Anek Gujarati (same condensed style, proper શ્વ / શ્ચ / શ્ન ligatures), sized to the
+same letter height (`GU_FALLBACK`).
 All drawing is anchored on the baseline, so positions match PSD type layers.
 """
 from __future__ import annotations
@@ -22,6 +25,10 @@ if not features.check("raqm"):
 
 _GU = re.compile(r"[\u0A80-\u0AFF\u200C\u200D]")
 _LAT = re.compile(r"[A-Za-z\u00C0-\u024F]")
+# શ + virama + consonant other than ર (+ more virama-consonant pairs, nukta, vowel signs, anusvara / candrabindu / visarga)
+_SHA_CLUSTER = re.compile("\u0AB6\u0ACD(?!\u0AB0)[\u0A95-\u0AB9](?:\u0ABC)?(?:\u0ACD[\u0A95-\u0AB9](?:\u0ABC)?)*"
+                          "[\u0ABE-\u0AC5\u0AC7-\u0AC9\u0ACB\u0ACC\u0AE2\u0AE3]*[\u0A81-\u0A83]*")
+GU_FALLBACK = {"akhand_xb": "anek_b", "akhand_b": "anek_sb"}   # font for the clusters above, same weight look
 
 
 @dataclass(frozen=True)
@@ -88,8 +95,31 @@ def runs(text: str, st: Style):
     for kind, chunk in out:
         k = key_of(kind)
         sz = st.size if kind == "g" else st.size * st.lat_scale
+        if kind == "g" and k in GU_FALLBACK:
+            res += _sha_split(k, sz, chunk)
+            continue
         res.append((k, int(round(sz)), "gu" if kind == "g" else "en", chunk))
     return res
+
+
+@lru_cache(maxsize=None)
+def _height_ratio(key: str, fb: str) -> float:
+    """Size factor so that the fallback font's શ has the same height as the main font's."""
+    h = lambda k: (lambda b: b[3] - b[1])(font(k, 200).getbbox("\u0AB6", language="gu"))
+    return h(key) / h(fb)
+
+
+def _sha_split(key: str, size: float, chunk: str):
+    """A Gujarati run with each શ્-cluster as its own run in the fallback font."""
+    fb, out, i = GU_FALLBACK[key], [], 0
+    for m in _SHA_CLUSTER.finditer(chunk):
+        if m.start() > i:
+            out.append((key, int(round(size)), "gu", chunk[i:m.start()]))
+        out.append((fb, int(round(size * _height_ratio(key, fb))), "gu", m.group()))
+        i = m.end()
+    if i < len(chunk):
+        out.append((key, int(round(size)), "gu", chunk[i:]))
+    return out
 
 
 def measure(text: str, st: Style) -> float:

@@ -4,6 +4,8 @@
   `profiles/` and `out/` (git-ignored). The repo contains only `samples/` (dummy data, placeholder photos).
 - Gujarati text needs Pillow with RAQM; `vcards/text.py` refuses to start without it.
 - Akhand Gujarati has no Latin glyphs: text is split into Gujarati/Latin runs (`text.runs`). Keep that.
+- Akhand's half-શ looks like ર (વિશ્વાસ read "વિરવાસ"): `text.runs` draws every શ્ + consonant cluster (not શ્ર)
+  with Anek Gujarati at the same letter height (`GU_FALLBACK`). Keep that.
 - Layout numbers in `vcards/cards.py` come from the CommuTree PSD templates (1200x1500). Change them
   only on request, and compare the card PNGs before/after.
 - Timings and audio levels live in `vcards/config.py`.
