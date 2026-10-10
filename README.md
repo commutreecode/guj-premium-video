@@ -140,7 +140,7 @@ Every section is optional; missing sections are skipped.
 | `mother`, `father` | `name`, `photo`, `occupation` (string or list of lines) |
 | `siblings[]` | any number of entries, one card each (the team app allows 5, the old form 2); `relation` (`bahen-banevi`, `bhai-bhabhi`, `mota-bhai-bhabhi`, `bhai`, `bahen`), `display_name`, `place`, `photos[1–2]`, `details[{who, text}]` |
 | `education[]` | `degree`, `institute`, `photo` (first photo found is used) |
-| `work` | `style: business` → `label`, `logo`, `company`, `desc`, `photo`; `style: bullets` → `bullets[]` |
+| `work` | `style: business` → `label`, `logo`, `company`, `desc`, `photo`; `style: bullets` → `bullets[]`, `photo`, `logo` (company logo drawn under the text; `photo` = the person, right side) |
 | `property[]` | bullet lines (the app/form put `Income: …` as the first line when an income is given) |
 | `hobbies[]` | gallery ticker |
 | `hold` | optional per-card reading time override in seconds, e.g. `{"hero": 6, "sibling": 4}` |

@@ -4,7 +4,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 
 from .config import BG_IMAGE, BROWN, FRAMING, H, LOGO, W
 
@@ -260,12 +260,19 @@ def cover(photo: Photo, w: int, h: int, scale: float = 1.0) -> Image.Image:
     return im.resize(out, Image.LANCZOS, box=box)
 
 
-def contain(path: Path, w: int, h: int) -> Image.Image:
-    """Fit a logo inside w x h keeping alpha."""
+def contain(path: Path, w: int, h: int, trim_bg: bool = False) -> Image.Image:
+    """Fit a logo inside w x h keeping alpha. trim_bg: also cut plain margins (a JPEG logo on white)."""
     im = ImageOps.exif_transpose(Image.open(path)).convert("RGBA")
     bb = im.getbbox()
     if bb:
         im = im.crop(bb)
+    if trim_bg and im.getchannel("A").getextrema()[0] == 255:      # opaque: trim the corner colour
+        bg = Image.new("RGB", im.size, im.getpixel((0, 0))[:3])
+        diff = ImageChops.difference(im.convert("RGB"), bg).convert("L").point(lambda v: 255 if v > 24 else 0)
+        bb = diff.getbbox()
+        if bb:
+            pad = max(4, round(0.03 * max(bb[2] - bb[0], bb[3] - bb[1])))
+            im = im.crop((max(0, bb[0] - pad), max(0, bb[1] - pad), min(im.width, bb[2] + pad), min(im.height, bb[3] + pad)))
     k = min(w / im.width, h / im.height)
     return im.resize((max(1, round(im.width * k)), max(1, round(im.height * k))), Image.LANCZOS)
 

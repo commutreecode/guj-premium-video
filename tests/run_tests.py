@@ -136,6 +136,32 @@ def main():
         ok += all(abs(a - s) < 0.06 for (a, _), s in zip(sp, truth))
     check("simulated v4 voices (sample profile): all cards correct", ok == 60, f"{ok}/60")
 
+    # job card: company logo under the text, the person's photo stays on the right (logo never in the photo frame)
+    from vcards import cards
+    from vcards.config import BROWN
+    from PIL import ImageColor
+    lgp = ROOT / "out" / "_logo.jpg"
+    li = Image.new("RGB", (1732, 385), "white")
+    li.paste((0, 200, 0), (60, 60, 1600, 320))
+    li.save(lgp)
+    ctx = cards.Ctx("boy", ROOT, "clear")
+    job = {"style": "bullets", "bullets": ["Engineer at Sample Systems Pvt. Ltd., Ahmedabad"], "logo": "out/_logo.jpg"}
+    jc = cards.work(ctx, job, "x", "samples/photos/g2.jpg").convert("RGB")
+    green = lambda box: any(g > 150 and r < 80 and b < 80 for r, g, b in jc.crop(box).getdata())
+    check("job card: logo under the text (left column)", green((40, 900, 800, 1440)))
+    check("job card: logo not in the photo frame", not green((830, 560, 1190, 1300)))
+    job4 = dict(job, bullets=["A at B, C", "D", "E", "F"])
+    jc = cards.work(ctx, job4, "x", "samples/photos/g2.jpg").convert("RGB")
+    check("job card with 4 points: logo under the list", green((40, 1150, 800, 1450)))
+
+    # sibling card: "who: text" continues after the name; the brown band keeps its size
+    sib = lambda det: cards.sibling(cards.Ctx("boy", ROOT / "samples", "clear"),
+                                    {"relation": "bhai", "display_name": "x", "photos": ["photos/couple.jpg"], "details": det}).convert("RGB")
+    isb = lambda im, y: max(abs(a - b) for a, b in zip(im.getpixel((10, y)), ImageColor.getrgb(BROWN))) < 6
+    short = sib([{"who": "અ", "text": "Service"}, {"who": "બ", "text": "Service"}])
+    long_ = sib([{"who": "અ", "text": "HouseWife"}, {"who": "બ", "text": "Professor at Sample Institute of Technology, Anand"}])
+    check("sibling band: same size for short and long text", all(isb(im, 1130) and isb(im, 1490) and not isb(im, 1110) for im in (short, long_)))
+
     r = subprocess.run([sys.executable, "render.py", str(sample), "--fast"], cwd=ROOT, capture_output=True, text=True)
     mp4 = ROOT / "out" / "sample-girl" / "preview.mp4"
     check("sample preview video renders", r.returncode == 0 and mp4.exists(), r.stderr[-200:])

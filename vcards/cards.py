@@ -237,25 +237,41 @@ def sibling(ctx: Ctx, s: dict) -> Image.Image:
         boxes = [(357, 490, 844, 1109)]
     for ph, box in zip(photos, boxes):
         imgs.paste_photo(im, ph, box, 88)
-    band(im, 1122, H, BROWN)
-    y_top, y_bot = 1122, H
-    # details block
-    lab = Style(gu="akhand_xb", lat="poppins_sb", size=83.3, lat_scale=0.72, color=WHITE)
-    lines = []  # (text, style, pitch)
-    for det in s.get("details", []):
-        who, txt = det.get("who", ""), det.get("text", "")
-        one = f"{who}: {txt}" if who else txt
-        lab1 = Style(gu="akhand_xb", lat="poppins_sb", size=83.3, lat_scale=0.85, color=WHITE)
-        if measure(one, lab1) <= 1120 * 1.12:
-            lines.append((one, fit(one, lab1, 1120, 0.88), 92))
-        else:
-            if who:
-                lines.append((f"{who}:", lab, 80))
-            body = Style(gu="akhand_xb", lat="poppins_sb", size=83.3, lat_scale=0.70, color=WHITE)
-            for ln in wrap_balanced(txt, body, 1120):
-                lines.append((ln, body, 66))
-    _draw_block(d, lines, y_top, y_bot)
+    _sibling_details(im, d, s.get("details", []))
     return im
+
+
+def _sibling_details(im, d, details, y_max=1122, pad=52, max_w=1120):
+    """Brown band at the bottom (always y_max..H, same on every card) with one paragraph per person
+    ("who: text"): a long text continues after the name and wraps; a little space between people."""
+    texts = [f"{x.get('who', '')}: {x.get('text', '')}" if x.get("who") else x.get("text", "") for x in details]
+    texts = [t for t in texts if t.strip()]
+    if not texts:
+        band(im, y_max, H, BROWN)
+        return
+    gap, avail = 26, H - y_max - 2 * pad
+    st1 = Style(gu="akhand_xb", lat="poppins_sb", size=83.3, lat_scale=0.85, color=WHITE)
+    k = 1.0
+    while True:      # largest size at which every paragraph (max 3 lines) fits the band
+        paras = []
+        for t in texts:
+            if measure(t, st1.scaled(k)) <= max_w * 1.12:          # one line (squeezed a little if needed)
+                paras.append(([t], fit(t, st1.scaled(k), max_w, 0.88), 83.3 * k * 1.12))
+            else:                                                  # continues after the name, wrapped
+                st = st1.scaled(k * 0.86)
+                paras.append((wrap_balanced(t, st, max_w), st, st.size * 1.12))
+        height = sum(p * len(ls) for ls, _, p in paras) + gap * k * (len(paras) - 1)
+        if (height <= avail and all(len(ls) <= 3 for ls, _, _ in paras)) or k <= 0.5:
+            break
+        k -= 0.04
+    top = y_max
+    band(im, top, H, BROWN)
+    y = top + (H - top - height) / 2
+    for ls, st, p in paras:
+        for ln in ls:
+            y += p
+            draw_line(d, ln, fit(ln, st, max_w), 600, y - p * 0.22)
+        y += gap * k
 
 
 def sibling_no_photo(ctx: Ctx, s: dict) -> Image.Image:
@@ -389,6 +405,21 @@ def split_job(items: list):
     return items[0], items[1], items[2:]
 
 
+def _job_logo(ctx: Ctx, w: dict, max_w: int, max_h: int):
+    """Company logo for a job card (white / plain margins trimmed), or None."""
+    if not w.get("logo") or max_h < 60:
+        return None
+    lg = imgs.contain(ctx.base / w["logo"], max_w, max_h, trim_bg=True)
+    if lg.getchannel("A").getextrema()[0] == 255:      # JPEG logo on its own background: soft rounded label
+        lg.putalpha(imgs.rrect_mask(lg.width, lg.height, min(18, lg.height / 5)))
+    return lg
+
+
+def _paste_logo(im: Image.Image, lg: Image.Image, x: float, align: str, top: float):
+    left = x if align == "left" else x - lg.width / 2
+    im.paste(lg, (int(left), int(top)), lg)
+
+
 def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
     im = canvas(ctx)
     d = ImageDraw.Draw(im)
@@ -400,12 +431,16 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
         imgs.paste_photo(im, ph, (840, 582, 1174, 1284), 66, ctx.privacy)
     if w.get("style", "business") == "bullets":
         items = w.get("bullets", [])
-        if len(items) > 3:  # a real list of roles: bullets
+        x, align, maxw = (50, "left", right - 50) if ph else (600, "center", 1100)
+        if len(items) > 3:  # a real list of roles: bullets (company logo, if any, under the list)
+            lg = _job_logo(ctx, w, min(maxw, 560), 170)
+            bottom = 1440 - (lg.height + 50 if lg else 0)
             bullet_list(im, d, items, ctx.accent, ctx.job_bullet, 50,
-                        100 if ctx.job_bullet == "dot" else 130, right, 680, 72, 1440, center_top=580)
+                        100 if ctx.job_bullet == "dot" else 130, right, 680, 72, bottom, center_top=580)
+            if lg:
+                _paste_logo(im, lg, x, align, 1440 - lg.height)
             return im
         desig, comp, extra = split_job(items)
-        x, align, maxw = (50, "left", right - 50) if ph else (600, "center", 1100)
         blocks = []  # (lines, style, pitch)
         if desig:
             st0 = Style(gu="akhand_xb", lat="barlow_xb", size=96, color=BLACK)
@@ -422,12 +457,17 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
             blocks.append((ls, st, 74))
         gaps = 40
         height = sum(p * len(ls) for ls, _, p in blocks) + gaps * (len(blocks) - 1)
-        y = 933 - height / 2          # vertical centre of the photo (582..1284)
+        # company logo after the text (never in the photo frame), sized to the room left on the card
+        lg = _job_logo(ctx, w, min(maxw, 560), min(200, 1440 - 560 - height - 50))
+        total = height + (lg.height + 50 if lg else 0)
+        y = max(560, 933 - total / 2)  # vertical centre of the photo (582..1284)
         for bi, (ls, st, p) in enumerate(blocks):
             for ln in ls:
                 y += p
                 draw_line(d, ln, st, x, y - p * 0.22, align)
             y += gaps
+        if lg:
+            _paste_logo(im, lg, x, align, y - gaps + 50)
         return im
     y_company, y_desc = 999, 1178
     if w.get("logo"):
