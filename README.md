@@ -86,8 +86,8 @@ as "Check voice: …").
 
 - `[long pause]` is an **Eleven v4 audio tag** (not spoken). It makes ElevenLabs leave clearly longer gaps
   between cards (measured 1.1–1.85 s vs ≤ 0.8 s inside cards), so the voice is split per card reliably.
-- **The voice stops after the occupation card** (team rule, Oct 2026): Income / Property and the photo gallery are
-  shown with background music only (property card 4.5 s) and are not part of the narration
+- **The voice stops after the occupation card** (team rule, Oct 2026): Past Experience, Income / Property and the photo
+  gallery are shown with background music only (cards 4.5 s) and are not part of the narration
   (`VOICE_LAST_SECTION`, `TIMING["silent_card"]` in `vcards/config.py`).
 - If a voice has fewer parts than the narration (a block was not spoken), the render stops with `VOICE CHECK: …`
   instead of putting every later sentence on the wrong card.
@@ -140,9 +140,9 @@ Every section is optional; missing sections are skipped.
 | `mother`, `father` | `name`, `photo`, `occupation` (string or list of lines) |
 | `siblings[]` | any number of entries, one card each (the team app allows 5, the old form 2); `relation` (`bahen-banevi`, `bhai-bhabhi`, `mota-bhai-bhabhi`, `bhai`, `bahen`), `display_name`, `place`, `photos[1–2]`, `details[{who, text}]` |
 | `education[]` | `degree`, `institute` (shown in brackets, colour #652B02), `photo` (first photo found is used); one card for up to 7 degrees (1–3: approved layout; 4–7: tighter, smaller text, the photo is dropped if the text would get too small next to it) |
-| `work` | `style: business` → `label`, `logo`, `company`, `desc`, `photo`; `style: bullets` → `bullets[]`, `photo`, `logo`; both: optional `past` ("Past Experience: …" line on the card, not narrated) (company logo drawn under the text; `photo` = the person, right side). A logo uploaded as the `photo` (no face, plain edges, few flat colours) is drawn as the logo and the right side gets a candidate photo |
+| `work` | `style: business` → `label`, `logo`, `company`, `desc`, `photo`; `style: bullets` → `bullets[]`, `photo`, `logo` (job: the logo is drawn ABOVE the company name, a white background made transparent; `photo` = the person, right side). A logo uploaded as the `photo` (no face, plain edges, few flat colours) is drawn as the logo and the right side gets a candidate photo. Optional `past`: `[{"text", "logo"}]` (max 3; a plain string also works) → own **Past Experience** card after the occupation card, each logo above its text, music only |
 | `property[]` | bullet lines (the app/form put `Income: …` as the first line when an income is given) |
-| `hobbies[]` | gallery ticker |
+| `hobbies[]` | gallery ticker: a long text scrolls once to its end (the gallery gets longer if needed). With exactly ONE `property` line (and gallery photos) that line is shown in the same strip ("PROPERTY:" / "INCOME:") instead of an own card |
 | `hold` | optional per-card reading time override in seconds, e.g. `{"hero": 6, "sibling": 4}` |
 | `sections[]` | optional custom order / subset of: intro, hero, dada_dadi, nana_nani, parents, mother, father, siblings, education, work, property, gallery |
 

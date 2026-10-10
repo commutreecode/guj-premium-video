@@ -136,7 +136,7 @@ def main():
         ok += all(abs(a - s) < 0.06 for (a, _), s in zip(sp, truth))
     check("simulated v4 voices (sample profile): all cards correct", ok == 60, f"{ok}/60")
 
-    # job card: company logo under the text, the person's photo stays on the right (logo never in the photo frame)
+    # job card: company logo ABOVE the company name, transparent; the person's photo stays on the right
     from vcards import cards
     from vcards.config import BROWN
     from PIL import ImageColor, ImageChops
@@ -147,27 +147,52 @@ def main():
     ctx = cards.Ctx("boy", ROOT, "clear")
     job = {"style": "bullets", "bullets": ["Engineer at Sample Systems Pvt. Ltd., Ahmedabad"], "logo": "out/_logo.jpg"}
     jc = cards.work(ctx, job, "x", "samples/photos/g2.jpg").convert("RGB")
-    green = lambda box: any(g > 150 and r < 80 and b < 80 for r, g, b in jc.crop(box).getdata())
-    check("job card: logo under the text (left column)", green((40, 900, 800, 1440)))
+    pix = lambda box: list(zip(*[iter(jc.crop(box).tobytes())] * 3))
+    green = lambda box: any(g > 150 and r < 80 and b < 80 for r, g, b in pix(box))
+    ys = [y for y in range(560, 1440, 4) if green((40, y, 800, y + 4))]
+    acc = ImageColor.getrgb(ctx.accent)
+    comp_y = min(y for y in range(560, 1440, 4) if any(max(abs(a - b) for a, b in zip(c, acc)) < 30 for c in pix((40, y, 800, y + 4))))
+    check("job card: logo above the company name", ys and max(ys) < comp_y, f"logo {ys[:1]}..{ys[-1:]} company {comp_y}")
     check("job card: logo not in the photo frame", not green((830, 560, 1190, 1300)))
+    check("job card: white logo background made transparent", sum(1 for c in pix((40, 560, 800, 1440)) if min(c) >= 250) < 200)
     job4 = dict(job, bullets=["A at B, C", "D", "E", "F"])
     jc = cards.work(ctx, job4, "x", "samples/photos/g2.jpg").convert("RGB")
-    check("job card with 4 points: logo under the list", green((40, 1150, 800, 1450)))
+    check("job card with 4 points: logo above the list", green((40, 560, 800, 780)))
 
     # a logo uploaded in the occupation PHOTO box (team habit): drawn as the logo, a person photo on the right
     jc = cards.work(ctx, {"style": "bullets", "bullets": job["bullets"], "photo": {"src": "out/_logo.jpg", "trim": [0, 0, 0.5, 1]}},
                     "x", "samples/photos/g2.jpg").convert("RGB")
-    check("logo in the photo box: drawn under the text, not in the photo frame",
-          green((40, 900, 800, 1440)) and not green((830, 560, 1190, 1300)))
+    check("logo in the photo box: drawn in the text column, not in the photo frame",
+          green((40, 560, 800, 1440)) and not green((830, 560, 1190, 1300)))
     noise = ROOT / "out" / "_busy.jpg"
     Image.frombytes("RGB", (8, 10), random.Random(1).randbytes(8 * 10 * 3)).resize((400, 500), Image.BILINEAR).save(noise)
     check("a busy photo (no face) is not taken for a logo", not imgs.looks_like_logo(imgs.Photo("out/_busy.jpg", ROOT)))
 
-    # "Past Experience" (optional) is shown on the occupation card, not narrated
-    jp = cards.work(ctx, dict(job, past="Data Scientist at Sample Analytics, Bangalore"), "x", "samples/photos/g2.jpg").convert("RGB")
+    # Past Experience: own card after the occupation card (up to 3, each with its logo), music only
+    past = [{"text": "Data Scientist at Sample Analytics, Bangalore", "logo": "out/_logo.jpg"}, "Intern at Sample Labs", {"text": "C"}, {"text": "D"}]
+    check("past experience: up to 3 items", len(cards.past_items({"past": past})) == 3 and cards.past_items({"past": "X"}) == [{"text": "X", "logo": None}])
+    jc = cards.past_experience(ctx, cards.past_items({"past": past}), "x").convert("RGB")
+    check("past experience card: logo drawn", green((0, 560, 1200, 1440)))
+    jp = cards.work(ctx, dict(job, past=past), "x", "samples/photos/g2.jpg").convert("RGB")
     j0 = cards.work(ctx, job, "x", "samples/photos/g2.jpg").convert("RGB")
-    check("past experience: shown on the occupation card", ImageChops.difference(jp, j0).getbbox() is not None)
-    check("past experience: not narrated", "Sample Analytics" not in scenes.scene_text("work", {"first_name": "x"}, dict(job, past="Sample Analytics")))
+    check("past experience: not on the occupation card", ImageChops.difference(jp, j0).getbbox() is None)
+    pp = json.loads(sample.read_text(encoding="utf-8"))
+    pp["work"] = dict(pp.get("work") or {"style": "bullets", "bullets": ["A"]}, past=["Data Scientist at Sample Analytics"])
+    sc = scenes.build(pp, ROOT / "samples", images=False)[0]
+    ids = [x.id for x in sc]
+    check("past experience: card right after the occupation card, no voice",
+          "past" in ids and ids.index("past") == ids.index("work") + 1 and not sc[ids.index("past")].text)
+
+    # one Income / Property line: shown in the gallery strip (no own card); a long hobby text scrolls to its end
+    pp["property"] = ["Residence 2BHK at Sample Nagar"]
+    pp["hobbies"] = ["Associated with a very long sample hobby description that does not fit", "Chess", "Badminton", "Table Tennis"]
+    sc, cx = scenes.build(pp, ROOT / "samples", images=False)
+    check("one property line: no Income / Property card", "property" not in [x.id for x in sc])
+    subs = cards.gallery_sublines(cx, pp)
+    check("one property line: in the gallery strip", any(st[0] == "ticker" and st[1].width < 400 and st[2].width > 300 for st, _ in subs[1:2]))
+    check("long hobby text: time to scroll to its end", subs[0][1] > cards.STATIC_SECONDS + 2, f"{subs[0][1]:.1f} s")
+    pp["property"] = ["Income: 10-20 Lakhs", "Residence 2BHK at Sample Nagar"]
+    check("two property lines: own card as before", "property" in [x.id for x in scenes.build(pp, ROOT / "samples", images=False)[0]])
 
     # education: up to 7 degrees on one card (1-3 keep the approved layout), nothing below the card's bottom
     eds = [{"degree": f"Degree number {i} in Sample Engineering", "institute": f"Sample University {i}, Ahmedabad"} for i in range(7)]

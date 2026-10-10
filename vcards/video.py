@@ -33,7 +33,7 @@ def plan(scenes, vo: dict | None = None, holds: dict | None = None):
         if sc.id == "cover":
             tl.append(dict(id=sc.id, kind="card", start=t, dur=T["cover"], vo_start=None, vo_len=0.0))
         elif sc.kind == "gallery":
-            dur = len(sc.extra["photos"]) * T["gallery_photo"]
+            dur = max(len(sc.extra["photos"]) * T["gallery_photo"], sc.extra.get("min_dur", 0))   # long hobby text: longer
             tl.append(dict(id=sc.id, kind="gallery", start=t, dur=dur, vo_start=None, vo_len=0.0))
         else:
             if vo is None:
@@ -57,16 +57,12 @@ class Gallery:
         self.overlay = cards.gallery_overlay(ctx, p)
         self.q = 1.25
         self._cache = {}
-        states = []
-        if p.get("hobbies"):
-            li, ti = cards.ticker_parts(ctx, p["hobbies"])
-            states.append(("ticker", li, ti))
-        if p.get("sect"):
-            states.append(("static", cards.strip_static(ctx, p["sect"], "sect")))
-        info = cards.info_line(p)
-        if info:
-            states.append(("static", cards.strip_static(ctx, info, "info")))
-        self.states = states or [("static", Image.new("RGB", (W, 128), "white"))]
+        self.per = dur / len(photos)                     # seconds per photo (2 s, more when the sub-lines need it)
+        subs = cards.gallery_sublines(ctx, p) or [(("static", Image.new("RGB", (W, 128), "white")), 1.0)]
+        self.states = [st for st, _ in subs]
+        need = [n for _, n in subs]
+        extra = max(0.0, dur - sum(need)) / len(need)   # spare time shared equally
+        self.segs = [n * (dur / sum(need)) if sum(need) > dur else n + extra for n in need]
 
     def _base(self, i):
         """(zoom-ready image, zoom anchor, top offset) for gallery photo i; the anchor is the face/chest point."""
@@ -91,12 +87,10 @@ class Gallery:
             strip.paste(li.crop((30, 0, lw, 128)), (x0, 0))
             strip.paste(ti, (x0 + lw - 30, 0))
             return strip
-        else:
-            gap = 160
-            off = (max(0.0, u - 0.8) * T["ticker_px_s"]) % (ti.width + gap)   # 0.8 s hold first
+        else:   # 0.8 s hold, then scroll ONCE to the end of the text and stay there (the whole text is read)
+            off = min(max(0.0, u - 0.8) * T["ticker_px_s"], ti.width - avail)
             region = Image.new("RGB", (avail, 128), "white")
             region.paste(ti, (int(-off), 0))
-            region.paste(ti, (int(-off + ti.width + gap), 0))
             strip.paste(region, (lw, 0))
         strip.paste(li, (0, 0))
         return strip
@@ -104,8 +98,8 @@ class Gallery:
     def frame(self, t):
         u = t - self.start
         n = len(self.photos)
-        i = min(n - 1, int(u / T["gallery_photo"]))
-        ph = (u - i * T["gallery_photo"]) / T["gallery_photo"]
+        i = min(n - 1, int(u / self.per))
+        ph = (u - i * self.per) / self.per
         s = 1.0 + (T["zoom_end"] - 1.0) * ph
         q = self.q
         base, (cx, cy), dy = self._base(i)      # zoom towards the face, not the photo centre
@@ -116,9 +110,12 @@ class Gallery:
         fr = Image.alpha_composite(fr, self.overlay).convert("RGB")
         # rotating sub-line
         k = len(self.states)
-        seg = self.dur / k
-        j = min(k - 1, int(u / seg))
-        loc = u - j * seg
+        j, t0 = 0, 0.0
+        while j < k - 1 and u >= t0 + self.segs[j]:
+            t0 += self.segs[j]
+            j += 1
+        seg = self.segs[j]
+        loc = u - t0
         strip = self._strip(self.states[j], loc)
         xf = T["subline_xfade"]
         if j < k - 1 and (seg - loc) < xf / 2:
@@ -126,7 +123,7 @@ class Gallery:
             a = 0.5 - (seg - loc) / xf
             strip = Image.blend(strip, nxt, max(0.0, min(1.0, a)))
         elif j > 0 and loc < xf / 2:
-            prv = self._strip(self.states[j - 1], seg)
+            prv = self._strip(self.states[j - 1], self.segs[j - 1])
             a = 0.5 + loc / xf
             strip = Image.blend(prv, strip, max(0.0, min(1.0, a)))
         fr.paste(strip, (0, 1372))

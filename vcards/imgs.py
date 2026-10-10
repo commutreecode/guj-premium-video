@@ -4,6 +4,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+import numpy as np
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 
 from .config import BG_IMAGE, BROWN, FRAMING, H, LOGO, W
@@ -278,19 +279,28 @@ def looks_like_logo(photo: "Photo") -> bool:
     return sum(top) / len(q) >= 0.6
 
 
-def contain(path, w: int, h: int, trim_bg: bool = False) -> Image.Image:
-    """Fit a logo (file path or image) inside w x h keeping alpha. trim_bg: also cut plain margins (a JPEG logo on white)."""
+def contain(path, w: int, h: int, trim_bg: bool = False, key_bg: bool = False) -> Image.Image:
+    """Fit a logo (file path or image) inside w x h keeping alpha. trim_bg: also cut plain margins (a JPEG logo on white);
+    key_bg: and make a light plain background transparent (the logo then sits on the card like a PNG logo)."""
     im = (path if isinstance(path, Image.Image) else ImageOps.exif_transpose(Image.open(path))).convert("RGBA")
     bb = im.getbbox()
     if bb:
         im = im.crop(bb)
-    if trim_bg and im.getchannel("A").getextrema()[0] == 255:      # opaque: trim the corner colour
-        bg = Image.new("RGB", im.size, im.getpixel((0, 0))[:3])
-        diff = ImageChops.difference(im.convert("RGB"), bg).convert("L").point(lambda v: 255 if v > 24 else 0)
-        bb = diff.getbbox()
-        if bb:
-            pad = max(4, round(0.03 * max(bb[2] - bb[0], bb[3] - bb[1])))
-            im = im.crop((max(0, bb[0] - pad), max(0, bb[1] - pad), min(im.width, bb[2] + pad), min(im.height, bb[3] + pad)))
+    if trim_bg and im.getchannel("A").getextrema()[0] == 255:      # opaque: trim the background colour
+        rgb = np.asarray(im.convert("RGB")).astype(np.int16)
+        edge = np.concatenate([rgb[0], rgb[-1], rgb[:, 0], rgb[:, -1]])
+        q = [tuple(c) for c in (edge // 8 * 8 + 4)]
+        bgc = np.array(max(set(q), key=q.count), dtype=np.int16)
+        dist = np.abs(rgb - bgc).max(axis=2)
+        ys, xs = np.nonzero(dist > 24)
+        if len(xs):
+            x0, x1, y0, y1 = xs.min(), xs.max() + 1, ys.min(), ys.max() + 1
+            pad = max(4, round(0.03 * max(x1 - x0, y1 - y0)))
+            box = (max(0, x0 - pad), max(0, y0 - pad), min(im.width, x1 + pad), min(im.height, y1 + pad))
+            im, dist = im.crop(box), dist[box[1]:box[3], box[0]:box[2]]
+        if key_bg and bgc.mean() >= 190:                               # white / light background → transparent
+            alpha = np.clip((dist - 14) * (255 / 30), 0, 255).astype(np.uint8)
+            im.putalpha(Image.fromarray(alpha))
     k = min(w / im.width, h / im.height)
     return im.resize((max(1, round(im.width * k)), max(1, round(im.height * k))), Image.LANCZOS)
 

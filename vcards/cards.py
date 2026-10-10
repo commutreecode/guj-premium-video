@@ -421,12 +421,17 @@ def split_job(items: list):
 
 
 def _job_logo(ctx: Ctx, w: dict, max_w: int, max_h: int):
-    """Company logo for a job card (white / plain margins trimmed), or None."""
+    """Company logo for a job card: plain margins trimmed, a white / light background made transparent
+    (a logo on a dark background keeps it, as a rounded label), or None."""
     src = _logo_src(ctx, w)
     if src is None or max_h < 60:
         return None
-    lg = imgs.contain(src, max_w, max_h, trim_bg=True)
-    if lg.getchannel("A").getextrema()[0] == 255:      # JPEG logo on its own background: soft rounded label
+    return _logo_img(src, max_w, max_h)
+
+
+def _logo_img(src, max_w: int, max_h: int) -> Image.Image:
+    lg = imgs.contain(src, max_w, max_h, trim_bg=True, key_bg=True)
+    if lg.getchannel("A").getextrema()[0] == 255:      # still opaque (dark background): soft rounded label
         lg.putalpha(imgs.rrect_mask(lg.width, lg.height, min(18, lg.height / 5)))
     return lg
 
@@ -459,18 +464,16 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
     if w.get("style", "business") == "bullets":
         items = w.get("bullets", [])
         x, align, maxw = (50, "left", right - 50) if ph else (600, "center", 1100)
-        past = (w.get("past") or "").strip()      # "Past Experience: …" (shown, not narrated)
-        if len(items) > 3:  # a real list of roles: bullets (company logo, if any, under the list)
-            items = items + ([f"Past Experience: {past}"] if past else [])
-            lg = _job_logo(ctx, w, min(maxw, 560), 170)
-            bottom = 1440 - (lg.height + 50 if lg else 0)
-            bullet_list(im, d, items, ctx.accent, ctx.job_bullet, 50,
-                        100 if ctx.job_bullet == "dot" else 130, right, 680, 72, bottom, center_top=580)
+        if len(items) > 3:  # a real list of roles: bullets (company logo, if any, above the list)
+            lg = _job_logo(ctx, w, min(maxw, 560), 150)
+            top = 580 + (lg.height + 40 if lg else 0)
             if lg:
-                _paste_logo(im, lg, x, align, 1440 - lg.height)
+                _paste_logo(im, lg, x, align, 580)
+            bullet_list(im, d, items, ctx.accent, ctx.job_bullet, 50,
+                        100 if ctx.job_bullet == "dot" else 130, right, top + 100, 72, 1440, center_top=top)
             return im
         desig, comp, extra = split_job(items)
-        blocks = []  # (lines, style, pitch)
+        blocks = []  # (lines, style, pitch) or ("logo", None, height)
         if desig:
             st0 = Style(gu="akhand_xb", lat="barlow_xb", size=96, color=BLACK)
             if measure(desig, st0.scaled(0.8)) <= maxw:      # keep a designation on one line when it nearly fits
@@ -478,33 +481,35 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
             else:
                 ls, st = wrap_fit(desig, st0, maxw, 2, 0.6)
             blocks.append((ls, st, 110))
+        texts = []
         if comp:
             ls, st = wrap_fit(comp, Style(gu="akhand_xb", lat="barlow_b", size=66.7, color=ctx.accent), maxw, 3, 0.7)
-            blocks.append((ls, st, 85))
+            texts.append((ls, st, 85))
         for e in extra:
             ls, st = wrap_fit(e, Style(gu="akhand_xb", lat="barlow_m", size=58, color=BLACK), maxw, 2, 0.7)
-            blocks.append((ls, st, 74))
-        if past:
-            ls, st = wrap_fit(f"Past Experience: {past}", Style(gu="akhand_xb", lat="barlow_m", size=52, color=BLACK),
-                              maxw, 2, 0.7)
-            blocks.append((ls, st, 68))
+            texts.append((ls, st, 74))
         gaps = 40
-        height = sum(p * len(ls) for ls, _, p in blocks) + gaps * (len(blocks) - 1)
-        # company logo after the text (never in the photo frame), sized to the room left on the card
-        lg = _job_logo(ctx, w, min(maxw, 560), min(200, 1440 - 560 - height - 50))
-        total = height + (lg.height + 50 if lg else 0)
+        height = sum(p * len(ls) for ls, _, p in blocks + texts) + gaps * (len(blocks + texts) - 1)
+        # company logo ABOVE the company name (never in the photo frame), sized to the room left on the card
+        lg = _job_logo(ctx, w, min(maxw, 520), min(170, 1440 - 560 - height - gaps))
+        if lg:
+            blocks.append(("logo", lg, lg.height))
+        blocks += texts
+        total = sum(p if ls == "logo" else p * len(ls) for ls, _, p in blocks) + gaps * (len(blocks) - 1)
         y = max(560, 933 - total / 2)  # vertical centre of the photo (582..1284)
-        for bi, (ls, st, p) in enumerate(blocks):
+        for ls, st, p in blocks:
+            if ls == "logo":
+                _paste_logo(im, st, x, align, y + 8)
+                y += p + gaps
+                continue
             for ln in ls:
                 y += p
                 draw_line(d, ln, st, x, y - p * 0.22, align)
             y += gaps
-        if lg:
-            _paste_logo(im, lg, x, align, y - gaps + 50)
         return im
     y_company, y_desc = 999, 1178
     if w.get("logo") or w.get("_logo_photo"):
-        lg = imgs.contain(_logo_src(ctx, w), 353, 328, trim_bg=not w.get("logo"))
+        lg = imgs.contain(_logo_src(ctx, w), 353, 328) if w.get("logo") else _logo_img(_logo_src(ctx, w), 353, 328)
         cx = 377 if ph else 600
         im.paste(lg, (int(cx - lg.width / 2), int(726 - lg.height / 2)), lg)
     else:
@@ -519,13 +524,6 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
         lines, st = wrap_fit(w["desc"], st, right - 70, 3, 0.7)
         for i, ln in enumerate(lines):
             draw_line(d, ln, st, (70 if ph else 600), y_desc + i * 85.4, align)
-        y_desc += 85.4 * (len(lines) - 1)
-    if (w.get("past") or "").strip():          # "Past Experience: …" under the description (shown, not narrated)
-        st = Style(gu="akhand_xb", lat="barlow_m", size=52, color=BLACK)
-        lines, st = wrap_fit(f"Past Experience: {w['past'].strip()}", st, right - 70, 2, 0.7)
-        y = min(y_desc + 100, 1440 - 66 * (len(lines) - 1))
-        for i, ln in enumerate(lines):
-            draw_line(d, ln, st, (70 if ph else 600), y + i * 66, align)
     return im
 
 
@@ -601,11 +599,10 @@ def strip_static(ctx: Ctx, text: str, kind: str) -> Image.Image:
     return im
 
 
-def ticker_parts(ctx: Ctx, hobbies: list):
+def ticker_parts(ctx: Ctx, hobbies: list, label: str = "HOBBY:"):
     """Returns (label_img, text_img). The label image has a 30 px left margin and an 18 px gap after."""
     lab = Style(gu="anek_sb", lat="anek_sb", size=70, color=ctx.accent)
     txt = Style(gu="anek_sb", lat="anek_sb", size=70, color=BLACK, upper=True)
-    label = "HOBBY:"
     bl = _ink_baseline(_line_fn, label, lab)          # caps: centre on the label's ink
     lw = int(measure(label, lab)) + 30 + 18
     li = Image.new("RGB", (lw, STRIP_H), WHITE)
@@ -615,3 +612,89 @@ def ticker_parts(ctx: Ctx, hobbies: list):
     ti = Image.new("RGB", (tw, STRIP_H), WHITE)
     draw_line(ImageDraw.Draw(ti), s, txt, 0, bl, "left")
     return li, ti
+
+
+def single_property(p: dict):
+    """(label, text) when the profile has exactly ONE Income / Property line: it is shown in the gallery's
+    white strip (like the hobbies) instead of an own card. Otherwise None."""
+    items = [str(x).strip() for x in (p.get("property") or []) if str(x).strip()]
+    if len(items) != 1:
+        return None
+    it = items[0]
+    if it.lower().startswith("income:"):
+        return "INCOME:", it.split(":", 1)[1].strip()
+    return "PROPERTY:", it
+
+
+STATIC_SECONDS = 3.0   # a fixed sub-line (sect / info) stays at least this long
+
+
+def gallery_sublines(ctx: Ctx, p: dict) -> list:
+    """Rotating white strip under the gallery name band: [(state, seconds needed)].
+    state = ("ticker", label_img, text_img) or ("static", img). A long ticker scrolls ONCE to its end (never cut)."""
+    from .config import TIMING
+    out = []
+    tick = []
+    if p.get("hobbies"):
+        tick.append(ticker_parts(ctx, p["hobbies"]))
+    sp = single_property(p)
+    if sp:
+        tick.append(ticker_parts(ctx, [sp[1]], sp[0]))
+    for li, ti in tick:
+        avail = W - li.width - 20
+        need = STATIC_SECONDS if ti.width <= avail else 0.8 + (ti.width - avail) / TIMING["ticker_px_s"] + 1.4
+        out.append((("ticker", li, ti), need))
+    if p.get("sect"):
+        out.append((("static", strip_static(ctx, p["sect"], "sect")), STATIC_SECONDS))
+    info = info_line(p)
+    if info:
+        out.append((("static", strip_static(ctx, info, "info")), STATIC_SECONDS))
+    return out
+
+
+def past_items(w: dict) -> list:
+    """Past experiences of the occupation: "text" / ["text", ...] / [{"text", "logo"}] -> [{"text", "logo"}] (max 3)."""
+    past = (w or {}).get("past")
+    if not past:
+        return []
+    if isinstance(past, str):
+        past = [past]
+    out = []
+    for x in past:
+        x = {"text": x} if isinstance(x, str) else dict(x or {})
+        if str(x.get("text") or "").strip():
+            out.append({"text": str(x["text"]).strip(), "logo": x.get("logo")})
+    return out[:3]
+
+
+def past_experience(ctx: Ctx, items: list, first: str) -> Image.Image:
+    """Card after the occupation card: up to 3 past jobs, each with its company logo above the text (music only)."""
+    im = canvas(ctx)
+    d = ImageDraw.Draw(im)
+    title1(d, f"{first} નો પરિચય")
+    title2(d, ctx, "Past Experience:", 166.7, 521, upper=True)
+    n = len(items)
+    k = 1.0
+    while True:
+        blocks = []
+        for it in items:
+            lg = _logo_img(ctx.photo(it["logo"]).load(), int(560 * k), int((210 if n == 1 else 150) * k)) if it.get("logo") else None
+            st = Style(gu="akhand_xb", lat="barlow_b", size=(78 if n == 1 else 68) * k, color=BLACK)
+            ls, st = wrap_fit(it["text"], st, 1080, 2, 0.7)
+            blocks.append((lg, ls, st, st.size * 1.25))
+        gap = 70 * k
+        height = sum((lg.height + 26 * k if lg else 0) + p * len(ls) for lg, ls, _, p in blocks) + gap * (n - 1)
+        if height <= 1440 - 600 or k < 0.6:
+            break
+        k -= 0.05
+    y = 600 + (840 - height) / 2
+    for lg, ls, st, p in blocks:
+        if lg:
+            im.paste(lg, (int(600 - lg.width / 2), int(y)), lg)
+            y += lg.height + 26 * k
+        for ln in ls:
+            y += p
+            draw_line(d, ln, st, 600, y - p * 0.22)
+        y += gap
+    return im
+

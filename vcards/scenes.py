@@ -9,7 +9,7 @@ from .config import VOICE_LAST_SECTION
 from .narration import scene_text
 
 DEFAULT_ORDER = ["intro", "hero", "dada_dadi", "nana_nani", "parents", "mother", "father",
-                 "siblings", "education", "work", "property", "gallery"]
+                 "siblings", "education", "work", "past", "property", "gallery"]
 
 
 @dataclass
@@ -39,6 +39,7 @@ def build(p: dict, base: Path, images: bool = True) -> tuple[list[Scene], cards.
         return f() if images else None
 
     out: list[Scene] = []
+    has_gal = bool((p.get("photos") or {}).get("gallery")) and ctx.privacy != "hide"
     order = list(p.get("sections", DEFAULT_ORDER))
     # sections after the occupation card are shown with music only (no narration, no voice)
     silent = set(order[order.index(VOICE_LAST_SECTION) + 1:]) if VOICE_LAST_SECTION in order else set()
@@ -61,14 +62,17 @@ def build(p: dict, base: Path, images: bool = True) -> tuple[list[Scene], cards.
                              scene_text("education", p, p["education"])))
         elif sec == "work" and p.get("work"):
             out.append(Scene("work", "card", mk(lambda: cards.work(ctx, p["work"], first, work_fb)), scene_text("work", p, p["work"])))
-        elif sec == "property" and p.get("property"):
+        elif sec == "past" and cards.past_items(p.get("work")):     # after the occupation card: music only
+            out.append(Scene("past", "card", mk(lambda: cards.past_experience(ctx, cards.past_items(p["work"]), first)), ""))
+        elif sec == "property" and p.get("property") and not (has_gal and cards.single_property(p)):
             out.append(Scene("property", "card", mk(lambda: cards.property_card(ctx, p["property"], first)),
                              scene_text("property", p, p["property"])))
         elif sec == "gallery":
             gal = (p.get("photos") or {}).get("gallery") or []
-            if gal and ctx.privacy != "hide":
+            if has_gal:
                 out.append(Scene("gallery", "gallery",
-                                 extra={"photos": [ctx.photo(g) for g in gal] if images else gal}))
+                                 extra={"photos": [ctx.photo(g) for g in gal] if images else gal,
+                                        "min_dur": sum(need for _, need in cards.gallery_sublines(ctx, p)) if images else 0}))
         if sec in silent:
             for sc in out[n0:]:
                 sc.text = ""
