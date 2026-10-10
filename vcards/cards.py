@@ -600,13 +600,20 @@ def strip_static(ctx: Ctx, text: str, kind: str) -> Image.Image:
 
 
 def ticker_parts(ctx: Ctx, hobbies: list, label: str = "HOBBY:"):
-    """Returns (label_img, text_img). The label image has a 30 px left margin and an 18 px gap after."""
+    """Returns (label_img, text_img). The label image has a 30 px left margin and an 18 px gap after.
+    label=None: a square bullet in the theme colour (blue / pink) instead of a word."""
     lab = Style(gu="anek_sb", lat="anek_sb", size=70, color=ctx.accent)
     txt = Style(gu="anek_sb", lat="anek_sb", size=70, color=BLACK, upper=True)
-    bl = _ink_baseline(_line_fn, label, lab)          # caps: centre on the label's ink
-    lw = int(measure(label, lab)) + 30 + 18
-    li = Image.new("RGB", (lw, STRIP_H), WHITE)
-    draw_line(ImageDraw.Draw(li), label, lab, 30, bl, "left")
+    bl = _ink_baseline(_line_fn, label or "HOBBY:", lab)          # caps: centre on the label's ink
+    if label:
+        lw = int(measure(label, lab)) + 30 + 18
+        li = Image.new("RGB", (lw, STRIP_H), WHITE)
+        draw_line(ImageDraw.Draw(li), label, lab, 30, bl, "left")
+    else:
+        b = 40                                                    # like the bullets of the Income / Property card
+        lw = 30 + b + 26
+        li = Image.new("RGB", (lw, STRIP_H), WHITE)
+        imgs.fill_rrect(li, (30, (STRIP_H - b) / 2, 30 + b, (STRIP_H + b) / 2), 7, ctx.accent)
     s = ", ".join(hobbies)
     tw = int(measure(s, txt)) + 10
     ti = Image.new("RGB", (tw, STRIP_H), WHITE)
@@ -615,15 +622,10 @@ def ticker_parts(ctx: Ctx, hobbies: list, label: str = "HOBBY:"):
 
 
 def single_property(p: dict):
-    """(label, text) when the profile has exactly ONE Income / Property line: it is shown in the gallery's
-    white strip (like the hobbies) instead of an own card. Otherwise None."""
+    """The text when the profile has exactly ONE Income / Property line: it is shown in the gallery's white strip
+    after a theme-colour bullet (no "PROPERTY:" word) instead of an own card. Otherwise None."""
     items = [str(x).strip() for x in (p.get("property") or []) if str(x).strip()]
-    if len(items) != 1:
-        return None
-    it = items[0]
-    if it.lower().startswith("income:"):
-        return "INCOME:", it.split(":", 1)[1].strip()
-    return "PROPERTY:", it
+    return items[0] if len(items) == 1 else None
 
 
 STATIC_SECONDS = 3.0   # a fixed sub-line (sect / info) stays at least this long
@@ -639,7 +641,7 @@ def gallery_sublines(ctx: Ctx, p: dict) -> list:
         tick.append(ticker_parts(ctx, p["hobbies"]))
     sp = single_property(p)
     if sp:
-        tick.append(ticker_parts(ctx, [sp[1]], sp[0]))
+        tick.append(ticker_parts(ctx, [sp], None))
     for li, ti in tick:
         avail = W - li.width - 20
         need = STATIC_SECONDS if ti.width <= avail else 0.8 + (ti.width - avail) / TIMING["ticker_px_s"] + 1.4

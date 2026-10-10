@@ -189,10 +189,22 @@ def main():
     sc, cx = scenes.build(pp, ROOT / "samples", images=False)
     check("one property line: no Income / Property card", "property" not in [x.id for x in sc])
     subs = cards.gallery_sublines(cx, pp)
-    check("one property line: in the gallery strip", any(st[0] == "ticker" and st[1].width < 400 and st[2].width > 300 for st, _ in subs[1:2]))
+    check("one property line: in the gallery strip after a theme-colour bullet (no PROPERTY: word)",
+          any(st[0] == "ticker" and st[1].width < 120 and st[2].width > 300 for st, _ in subs[1:2]))
     check("long hobby text: time to scroll to its end", subs[0][1] > cards.STATIC_SECONDS + 2, f"{subs[0][1]:.1f} s")
     pp["property"] = ["Income: 10-20 Lakhs", "Residence 2BHK at Sample Nagar"]
     check("two property lines: own card as before", "property" in [x.id for x in scenes.build(pp, ROOT / "samples", images=False)[0]])
+
+    # gallery photo cropped tight above the head (dy > 0): the top is filled from the photo, never a light bar
+    from vcards import video
+    tight = ROOT / "out" / "_tight.png"
+    gim = Image.new("RGB", (900, 1100), (40, 90, 160))
+    gim.save(tight)
+    g = video.Gallery(cards.Ctx("boy", ROOT, "clear"), {"name": "x"}, [imgs.Photo("out/_tight.png", ROOT)], 0, 2.0)
+    g._cache[0] = (Image.new("RGB", (1500, 1200), (40, 90, 160)), (750, 300), 150)   # as cover_reserve gives for a tight crop
+    fr = g.frame(0.5)
+    r, gg, b = fr.getpixel((1000, 60))
+    check("gallery: no light bar above a tightly cropped photo", b > r + 60, str((r, gg, b)))
 
     # education: up to 7 degrees on one card (1-3 keep the approved layout), nothing below the card's bottom
     eds = [{"degree": f"Degree number {i} in Sample Engineering", "institute": f"Sample University {i}, Ahmedabad"} for i in range(7)]

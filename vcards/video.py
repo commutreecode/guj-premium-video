@@ -107,6 +107,9 @@ class Gallery:
         photo = base.transform((W, PHOTO_H - dy), Image.AFFINE, data, Image.BICUBIC)
         fr = imgs.background().convert("RGBA")
         fr.paste(photo, (0, dy))
+        if dy > 0:      # little photo above the head (e.g. cropped tight): extend its top edge, never a light bar
+            edge = photo.crop((0, 0, W, max(6, min(photo.height, dy // 4))))
+            fr.paste(edge.resize((W, dy), Image.BILINEAR).filter(ImageFilter.GaussianBlur(14)), (0, 0))
         fr = Image.alpha_composite(fr, self.overlay).convert("RGB")
         # rotating sub-line
         k = len(self.states)
