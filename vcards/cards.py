@@ -319,6 +319,9 @@ def _draw_block(d, lines, y0, y1, x=600, align="center", max_w=1130):
         draw_line(d, txt, fit(txt, st.scaled(k), max_w), x, yb - p * 0.22, align)
 
 
+INSTITUTE = "#652B02"      # college / university line on the education card
+
+
 def education(ctx: Ctx, entries: list, first: str, fallback_photo=None) -> Image.Image:
     im = canvas(ctx)
     d = ImageDraw.Draw(im)
@@ -338,8 +341,11 @@ def education(ctx: Ctx, entries: list, first: str, fallback_photo=None) -> Image
                 for i, ln in enumerate(dl):
                     ops.append(("text", ln, deg, bl))
                     bl += 105 * k if i < len(dl) - 1 else 0
-                inst = Style(gu="akhand_xb", lat="barlow_m", size=66.7 * k, color=BLACK)
-                for ln in wrap_balanced(e.get("institute", ""), inst, maxw) if e.get("institute") else []:
+                inst = Style(gu="akhand_xb", lat="barlow_m", size=66.7 * k, color=INSTITUTE)
+                it = (e.get("institute") or "").strip()
+                if it and not (it.startswith("(") and it.endswith(")")):
+                    it = f"({it})"                  # "(BVM, Anand)" in brown (CT, 10 Oct 2026)
+                for ln in wrap_balanced(it, inst, maxw) if it else []:
                     bl += 85.4 * k
                     ops.append(("text", ln, inst, bl))
                 bl += 85.4 * k + (38 if many else 70) * k
