@@ -139,7 +139,7 @@ def main():
     # job card: company logo under the text, the person's photo stays on the right (logo never in the photo frame)
     from vcards import cards
     from vcards.config import BROWN
-    from PIL import ImageColor
+    from PIL import ImageColor, ImageChops
     lgp = ROOT / "out" / "_logo.jpg"
     li = Image.new("RGB", (1732, 385), "white")
     li.paste((0, 200, 0), (60, 60, 1600, 320))
@@ -162,6 +162,13 @@ def main():
     noise = ROOT / "out" / "_busy.jpg"
     Image.frombytes("RGB", (8, 10), random.Random(1).randbytes(8 * 10 * 3)).resize((400, 500), Image.BILINEAR).save(noise)
     check("a busy photo (no face) is not taken for a logo", not imgs.looks_like_logo(imgs.Photo("out/_busy.jpg", ROOT)))
+
+    # education: up to 7 degrees on one card (1-3 keep the approved layout), nothing below the card's bottom
+    eds = [{"degree": f"Degree number {i} in Sample Engineering", "institute": f"Sample University {i}, Ahmedabad"} for i in range(7)]
+    e7 = cards.education(ctx, eds, "x", None).convert("RGB")
+    e0 = cards.education(ctx, [], "x", None).convert("RGB")
+    check("education: 7 degrees fit on the card", ImageChops.difference(e7.crop((0, 1462, 1200, 1500)), e0.crop((0, 1462, 1200, 1500))).getbbox() is None
+          and ImageChops.difference(e7.crop((0, 1300, 1200, 1460)), e0.crop((0, 1300, 1200, 1460))).getbbox() is not None)
 
     # sibling card: "who: text" continues after the name; the brown band keeps its size
     sib = lambda det: cards.sibling(cards.Ctx("boy", ROOT / "samples", "clear"),

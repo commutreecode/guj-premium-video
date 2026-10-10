@@ -325,29 +325,38 @@ def education(ctx: Ctx, entries: list, first: str, fallback_photo=None) -> Image
     title1(d, f"{first} નો પરિચય")
     title2(d, ctx, "Education / અભ્યાસ", 129.2, 487, upper=True)
     photo = next((ctx.photo(e["photo"]) for e in entries if e.get("photo")), None) or ctx.photo(fallback_photo)
+    many = len(entries) > 3                 # 4-7 degrees: tighter spacing, smaller text if needed (1-3: as approved)
+
+    def layout(maxw):
+        k = 1.0
+        while True:
+            ops, bl = [], (650 if many else 698)
+            for e in entries:
+                deg = Style(gu="akhand_xb", lat="barlow_xb", size=104.2 * k, color=BLACK)
+                dl, deg = wrap_fit(e.get("degree", ""), deg, maxw, 2, 0.7)
+                ops.append(("bullet", bl))
+                for i, ln in enumerate(dl):
+                    ops.append(("text", ln, deg, bl))
+                    bl += 105 * k if i < len(dl) - 1 else 0
+                inst = Style(gu="akhand_xb", lat="barlow_m", size=66.7 * k, color=BLACK)
+                for ln in wrap_balanced(e.get("institute", ""), inst, maxw) if e.get("institute") else []:
+                    bl += 85.4 * k
+                    ops.append(("text", ln, inst, bl))
+                bl += 85.4 * k + (38 if many else 70) * k
+            if bl - (38 if many else 70) * k <= (1460 if many else 1440) or k < (0.4 if many else 0.6):
+                return ops, k
+            k -= 0.05 if not many else 0.02
+
     if photo:  # photo on the right, text column on the left
+        xb, xt = 50, 130
+        ops, k = layout(800 - 130)
+        if many and k < 0.6:                # too small next to the photo: the whole width for the text
+            photo = None
+    if photo:
         imgs.paste_photo(im, photo, (840, 582, 1174, 1284), 66, ctx.privacy)
-        xb, xt, maxw = 50, 130, 800 - 130
     else:
-        xb, xt, maxw = 90, 170, 1110 - 170
-    k = 1.0
-    while True:
-        ops, bl = [], 698
-        for e in entries:
-            deg = Style(gu="akhand_xb", lat="barlow_xb", size=104.2 * k, color=BLACK)
-            dl, deg = wrap_fit(e.get("degree", ""), deg, maxw, 2, 0.7)
-            ops.append(("bullet", bl))
-            for i, ln in enumerate(dl):
-                ops.append(("text", ln, deg, bl))
-                bl += 105 * k if i < len(dl) - 1 else 0
-            inst = Style(gu="akhand_xb", lat="barlow_m", size=66.7 * k, color=BLACK)
-            for ln in wrap_balanced(e.get("institute", ""), inst, maxw) if e.get("institute") else []:
-                bl += 85.4 * k
-                ops.append(("text", ln, inst, bl))
-            bl += 85.4 * k + 70 * k
-        if bl - 70 * k <= 1440 or k < 0.6:
-            break
-        k -= 0.05
+        xb, xt = 90, 170
+        ops, k = layout(1110 - 170)
     for op in ops:
         if op[0] == "bullet":
             b = 58 * k
