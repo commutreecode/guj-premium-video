@@ -154,6 +154,15 @@ def main():
     jc = cards.work(ctx, job4, "x", "samples/photos/g2.jpg").convert("RGB")
     check("job card with 4 points: logo under the list", green((40, 1150, 800, 1450)))
 
+    # a logo uploaded in the occupation PHOTO box (team habit): drawn as the logo, a person photo on the right
+    jc = cards.work(ctx, {"style": "bullets", "bullets": job["bullets"], "photo": {"src": "out/_logo.jpg", "trim": [0, 0, 0.5, 1]}},
+                    "x", "samples/photos/g2.jpg").convert("RGB")
+    check("logo in the photo box: drawn under the text, not in the photo frame",
+          green((40, 900, 800, 1440)) and not green((830, 560, 1190, 1300)))
+    noise = ROOT / "out" / "_busy.jpg"
+    Image.frombytes("RGB", (8, 10), random.Random(1).randbytes(8 * 10 * 3)).resize((400, 500), Image.BILINEAR).save(noise)
+    check("a busy photo (no face) is not taken for a logo", not imgs.looks_like_logo(imgs.Photo("out/_busy.jpg", ROOT)))
+
     # sibling card: "who: text" continues after the name; the brown band keeps its size
     sib = lambda det: cards.sibling(cards.Ctx("boy", ROOT / "samples", "clear"),
                                     {"relation": "bhai", "display_name": "x", "photos": ["photos/couple.jpg"], "details": det}).convert("RGB")

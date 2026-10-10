@@ -407,12 +407,20 @@ def split_job(items: list):
 
 def _job_logo(ctx: Ctx, w: dict, max_w: int, max_h: int):
     """Company logo for a job card (white / plain margins trimmed), or None."""
-    if not w.get("logo") or max_h < 60:
+    src = _logo_src(ctx, w)
+    if src is None or max_h < 60:
         return None
-    lg = imgs.contain(ctx.base / w["logo"], max_w, max_h, trim_bg=True)
+    lg = imgs.contain(src, max_w, max_h, trim_bg=True)
     if lg.getchannel("A").getextrema()[0] == 255:      # JPEG logo on its own background: soft rounded label
         lg.putalpha(imgs.rrect_mask(lg.width, lg.height, min(18, lg.height / 5)))
     return lg
+
+
+def _logo_src(ctx: Ctx, w: dict):
+    """The logo file, or the logo the team uploaded in the occupation photo box (edited image), or None."""
+    if w.get("logo"):
+        return ctx.base / w["logo"]
+    return w["_logo_photo"].load() if w.get("_logo_photo") else None
 
 
 def _paste_logo(im: Image.Image, lg: Image.Image, x: float, align: str, top: float):
@@ -425,6 +433,10 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
     d = ImageDraw.Draw(im)
     title1(d, f"{first} નો પરિચય")
     title2(d, ctx, "જોબ / વ્યવસાય", 166.7, 509)
+    if w.get("photo") and not w.get("logo"):
+        p0 = ctx.photo(w["photo"])
+        if imgs.looks_like_logo(p0):      # a company logo in the photo box: drawn as the logo, a person photo on the right
+            w = dict(w, photo=None, _logo_photo=p0)
     ph = ctx.photo(w.get("photo")) or ctx.photo(fallback_photo)
     right = 790 if ph else 1150
     if ph:
@@ -470,8 +482,8 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
             _paste_logo(im, lg, x, align, y - gaps + 50)
         return im
     y_company, y_desc = 999, 1178
-    if w.get("logo"):
-        lg = imgs.contain(ctx.base / w["logo"], 353, 328)
+    if w.get("logo") or w.get("_logo_photo"):
+        lg = imgs.contain(_logo_src(ctx, w), 353, 328, trim_bg=not w.get("logo"))
         cx = 377 if ph else 600
         im.paste(lg, (int(cx - lg.width / 2), int(726 - lg.height / 2)), lg)
     else:

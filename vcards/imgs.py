@@ -260,9 +260,27 @@ def cover(photo: Photo, w: int, h: int, scale: float = 1.0) -> Image.Image:
     return im.resize(out, Image.LANCZOS, box=box)
 
 
-def contain(path: Path, w: int, h: int, trim_bg: bool = False) -> Image.Image:
-    """Fit a logo inside w x h keeping alpha. trim_bg: also cut plain margins (a JPEG logo on white)."""
-    im = ImageOps.exif_transpose(Image.open(path)).convert("RGBA")
+def looks_like_logo(photo: "Photo") -> bool:
+    """A company logo uploaded in a photo box: no face, a plain frame all round (a logo on white / one colour)
+    and a few flat colours. Real photos have busy edges (measured: edges plain <= 0.32, logos >= 0.6)."""
+    if faces(*photo.key):
+        return False
+    im = photo.load().convert("RGB").resize((64, 64))
+    b = im.tobytes()
+    px = [tuple(b[i:i + 3]) for i in range(0, len(b), 3)]
+    border = [px[y * 64 + x] for x in range(64) for y in (0, 63)] + [px[y * 64 + x] for y in range(64) for x in (0, 63)]
+    bg = max(set(border), key=border.count)
+    near = lambda c: max(abs(p - q) for p, q in zip(c, bg)) <= 30
+    if sum(map(near, border)) / len(border) < 0.55 or sum(map(near, px)) / len(px) < 0.2:
+        return False
+    q = [tuple(v // 24 for v in c) for c in px]                 # flat colours: a few colours cover most of it
+    top = sorted((q.count(c) for c in set(q)), reverse=True)[:8]
+    return sum(top) / len(q) >= 0.6
+
+
+def contain(path, w: int, h: int, trim_bg: bool = False) -> Image.Image:
+    """Fit a logo (file path or image) inside w x h keeping alpha. trim_bg: also cut plain margins (a JPEG logo on white)."""
+    im = (path if isinstance(path, Image.Image) else ImageOps.exif_transpose(Image.open(path))).convert("RGBA")
     bb = im.getbbox()
     if bb:
         im = im.crop(bb)
