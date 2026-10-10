@@ -163,6 +163,12 @@ def main():
     Image.frombytes("RGB", (8, 10), random.Random(1).randbytes(8 * 10 * 3)).resize((400, 500), Image.BILINEAR).save(noise)
     check("a busy photo (no face) is not taken for a logo", not imgs.looks_like_logo(imgs.Photo("out/_busy.jpg", ROOT)))
 
+    # "Past Experience" (optional) is shown on the occupation card, not narrated
+    jp = cards.work(ctx, dict(job, past="Data Scientist at Sample Analytics, Bangalore"), "x", "samples/photos/g2.jpg").convert("RGB")
+    j0 = cards.work(ctx, job, "x", "samples/photos/g2.jpg").convert("RGB")
+    check("past experience: shown on the occupation card", ImageChops.difference(jp, j0).getbbox() is not None)
+    check("past experience: not narrated", "Sample Analytics" not in scenes.scene_text("work", {"first_name": "x"}, dict(job, past="Sample Analytics")))
+
     # education: up to 7 degrees on one card (1-3 keep the approved layout), nothing below the card's bottom
     eds = [{"degree": f"Degree number {i} in Sample Engineering", "institute": f"Sample University {i}, Ahmedabad"} for i in range(7)]
     e7 = cards.education(ctx, eds, "x", None).convert("RGB")

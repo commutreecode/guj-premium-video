@@ -453,7 +453,9 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
     if w.get("style", "business") == "bullets":
         items = w.get("bullets", [])
         x, align, maxw = (50, "left", right - 50) if ph else (600, "center", 1100)
+        past = (w.get("past") or "").strip()      # "Past Experience: …" (shown, not narrated)
         if len(items) > 3:  # a real list of roles: bullets (company logo, if any, under the list)
+            items = items + ([f"Past Experience: {past}"] if past else [])
             lg = _job_logo(ctx, w, min(maxw, 560), 170)
             bottom = 1440 - (lg.height + 50 if lg else 0)
             bullet_list(im, d, items, ctx.accent, ctx.job_bullet, 50,
@@ -476,6 +478,10 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
         for e in extra:
             ls, st = wrap_fit(e, Style(gu="akhand_xb", lat="barlow_m", size=58, color=BLACK), maxw, 2, 0.7)
             blocks.append((ls, st, 74))
+        if past:
+            ls, st = wrap_fit(f"Past Experience: {past}", Style(gu="akhand_xb", lat="barlow_m", size=52, color=BLACK),
+                              maxw, 2, 0.7)
+            blocks.append((ls, st, 68))
         gaps = 40
         height = sum(p * len(ls) for ls, _, p in blocks) + gaps * (len(blocks) - 1)
         # company logo after the text (never in the photo frame), sized to the room left on the card
@@ -507,6 +513,13 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
         lines, st = wrap_fit(w["desc"], st, right - 70, 3, 0.7)
         for i, ln in enumerate(lines):
             draw_line(d, ln, st, (70 if ph else 600), y_desc + i * 85.4, align)
+        y_desc += 85.4 * (len(lines) - 1)
+    if (w.get("past") or "").strip():          # "Past Experience: …" under the description (shown, not narrated)
+        st = Style(gu="akhand_xb", lat="barlow_m", size=52, color=BLACK)
+        lines, st = wrap_fit(f"Past Experience: {w['past'].strip()}", st, right - 70, 2, 0.7)
+        y = min(y_desc + 100, 1440 - 66 * (len(lines) - 1))
+        for i, ln in enumerate(lines):
+            draw_line(d, ln, st, (70 if ph else 600), y + i * 66, align)
     return im
 
 

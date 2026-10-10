@@ -140,7 +140,7 @@ Every section is optional; missing sections are skipped.
 | `mother`, `father` | `name`, `photo`, `occupation` (string or list of lines) |
 | `siblings[]` | any number of entries, one card each (the team app allows 5, the old form 2); `relation` (`bahen-banevi`, `bhai-bhabhi`, `mota-bhai-bhabhi`, `bhai`, `bahen`), `display_name`, `place`, `photos[1–2]`, `details[{who, text}]` |
 | `education[]` | `degree`, `institute`, `photo` (first photo found is used); one card for up to 7 degrees (1–3: approved layout; 4–7: tighter, smaller text, the photo is dropped if the text would get too small next to it) |
-| `work` | `style: business` → `label`, `logo`, `company`, `desc`, `photo`; `style: bullets` → `bullets[]`, `photo`, `logo` (company logo drawn under the text; `photo` = the person, right side). A logo uploaded as the `photo` (no face, plain edges, few flat colours) is drawn as the logo and the right side gets a candidate photo |
+| `work` | `style: business` → `label`, `logo`, `company`, `desc`, `photo`; `style: bullets` → `bullets[]`, `photo`, `logo`; both: optional `past` ("Past Experience: …" line on the card, not narrated) (company logo drawn under the text; `photo` = the person, right side). A logo uploaded as the `photo` (no face, plain edges, few flat colours) is drawn as the logo and the right side gets a candidate photo |
 | `property[]` | bullet lines (the app/form put `Income: …` as the first line when an income is given) |
 | `hobbies[]` | gallery ticker |
 | `hold` | optional per-card reading time override in seconds, e.g. `{"hero": 6, "sibling": 4}` |
