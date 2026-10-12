@@ -166,7 +166,11 @@ def main():
           green((40, 560, 800, 1440)) and not green((830, 560, 1190, 1300)))
     noise = ROOT / "out" / "_busy.jpg"
     Image.frombytes("RGB", (8, 10), random.Random(1).randbytes(8 * 10 * 3)).resize((400, 500), Image.BILINEAR).save(noise)
-    check("a busy photo (no face) is not taken for a logo", not imgs.looks_like_logo(imgs.Photo("out/_busy.jpg", ROOT)))
+    jc = cards.work(ctx, {"style": "bullets", "bullets": job["bullets"], "photo": "out/_busy.jpg"}, "x", "samples/photos/g2.jpg").convert("RGB")
+    j2 = cards.work(ctx, {"style": "bullets", "bullets": job["bullets"]}, "x", "samples/photos/g2.jpg").convert("RGB")
+    check("LOGO / COMPANY CARD box without a face (e.g. a blue visiting card): in the text column, photo frame unchanged",
+          ImageChops.difference(jc.crop((830, 560, 1190, 1300)), j2.crop((830, 560, 1190, 1300))).getbbox() is None
+          and ImageChops.difference(jc.crop((40, 560, 800, 1440)), j2.crop((40, 560, 800, 1440))).getbbox() is not None)
 
     # Past Experience: own card after the occupation card (up to 3, each with its logo), music only
     past = [{"text": "Data Scientist at Sample Analytics, Bangalore", "logo": "out/_logo.jpg"}, "Intern at Sample Labs", {"text": "C"}, {"text": "D"}]

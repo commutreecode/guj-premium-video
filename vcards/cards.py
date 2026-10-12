@@ -420,18 +420,20 @@ def split_job(items: list):
     return items[0], items[1], items[2:]
 
 
-def _job_logo(ctx: Ctx, w: dict, max_w: int, max_h: int):
+def _job_logo(ctx: Ctx, w: dict, max_w: int, max_h: int, card_h: int | None = None):
     """Company logo for a job card: plain margins trimmed, a white / light background made transparent
-    (a logo on a dark background keeps it, as a rounded label), or None."""
+    (a logo / visiting card on a coloured background keeps it, as a rounded label, up to card_h tall), or None."""
     src = _logo_src(ctx, w)
     if src is None or max_h < 60:
         return None
-    return _logo_img(src, max_w, max_h)
+    return _logo_img(src, max_w, max_h, card_h)
 
 
-def _logo_img(src, max_w: int, max_h: int) -> Image.Image:
+def _logo_img(src, max_w: int, max_h: int, card_h: int | None = None) -> Image.Image:
     lg = imgs.contain(src, max_w, max_h, trim_bg=True, key_bg=True)
-    if lg.getchannel("A").getextrema()[0] == 255:      # still opaque (dark background): soft rounded label
+    if lg.getchannel("A").getextrema()[0] == 255:      # still opaque (coloured background, e.g. a visiting card)
+        if card_h and card_h > max_h:                   # a card has text on it: may be shown larger
+            lg = imgs.contain(src, max_w, card_h, trim_bg=True, key_bg=True)
         lg.putalpha(imgs.rrect_mask(lg.width, lg.height, min(18, lg.height / 5)))
     return lg
 
@@ -455,7 +457,9 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
     title2(d, ctx, "જોબ / વ્યવસાય", 166.7, 509)
     if w.get("photo") and not w.get("logo"):
         p0 = ctx.photo(w["photo"])
-        if imgs.looks_like_logo(p0):      # a company logo in the photo box: drawn as the logo, a person photo on the right
+        # the app's box is "LOGO / COMPANY CARD": without a face it is a logo or a visiting card, drawn in the text
+        # column (never cut by the photo frame); a candidate photo goes on the right. With a face: the person, as before.
+        if not imgs.faces(*p0.key):
             w = dict(w, photo=None, _logo_photo=p0)
     ph = ctx.photo(w.get("photo")) or ctx.photo(fallback_photo)
     right = 790 if ph else 1150
@@ -491,7 +495,8 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
         gaps = 40
         height = sum(p * len(ls) for ls, _, p in blocks + texts) + gaps * (len(blocks + texts) - 1)
         # company logo ABOVE the company name (never in the photo frame), sized to the room left on the card
-        lg = _job_logo(ctx, w, min(maxw, 520), min(170, 1440 - 560 - height - gaps))
+        room = 1440 - 560 - height - gaps
+        lg = _job_logo(ctx, w, min(maxw, 520), min(170, room), min(300, room))
         if lg:
             blocks.append(("logo", lg, lg.height))
         blocks += texts
