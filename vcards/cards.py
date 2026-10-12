@@ -241,33 +241,50 @@ def sibling(ctx: Ctx, s: dict) -> Image.Image:
     return im
 
 
+def hard_lines(text) -> list[str]:
+    """The team's own line breaks (Enter in the form's text box) are kept: one entry per typed line,
+    spaces tidied, empty lines dropped."""
+    return [" ".join(x.split()) for x in str(text or "").splitlines() if x.strip()]
+
+
+def _detail_segments(x: dict) -> list[str]:
+    """One sibling detail ("who" + text) as its typed lines; the name goes before the first line."""
+    segs = hard_lines(x.get("text", ""))
+    if segs and x.get("who"):
+        segs[0] = f"{x['who']}: {segs[0]}"
+    return segs
+
+
 def _sibling_details(im, d, details, y_max=1122, pad=52, max_w=1120):
     """Brown band at the bottom (always y_max..H, same on every card) with one paragraph per person
-    ("who: text"): a long text continues after the name and wraps; a little space between people."""
-    texts = [f"{x.get('who', '')}: {x.get('text', '')}" if x.get("who") else x.get("text", "") for x in details]
-    texts = [t for t in texts if t.strip()]
+    ("who: text"): a long text continues after the name and wraps; a line break typed in the form starts a
+    new line on the card too; a little space between people."""
+    texts = [t for t in (_detail_segments(x) for x in details) if t]
     if not texts:
         band(im, y_max, H, BROWN)
         return
+    if sum(len(t) for t in texts) > 3:        # 4+ typed lines: less empty band above / below, so the text stays big
+        pad = 26
     gap, avail = 26, H - y_max - 2 * pad
     st1 = Style(gu="akhand_xb", lat="poppins_sb", size=83.3, lat_scale=0.85, color=WHITE)
     k = 1.0
-    while True:      # largest size at which every paragraph (max 3 lines) fits the band
+    while True:      # largest size at which every paragraph (max 3 lines, or its typed lines) fits the band
         paras = []
-        for t in texts:
-            if measure(t, st1.scaled(k)) <= max_w * 1.12:          # one line (squeezed a little if needed)
-                paras.append(([t], fit(t, st1.scaled(k), max_w, 0.88), 83.3 * k * 1.12))
-            else:                                                  # continues after the name, wrapped
+        for segs in texts:
+            if len(segs) == 1 and measure(segs[0], st1.scaled(k)) <= max_w * 1.12:   # one line (squeezed a little)
+                paras.append(([segs[0]], fit(segs[0], st1.scaled(k), max_w, 0.88), 83.3 * k * 1.12, 1))
+            else:                                  # continues after the name, wrapped; typed lines stay lines
                 st = st1.scaled(k * 0.86)
-                paras.append((wrap_balanced(t, st, max_w), st, st.size * 1.12))
-        height = sum(p * len(ls) for ls, _, p in paras) + gap * k * (len(paras) - 1)
-        if (height <= avail and all(len(ls) <= 3 for ls, _, _ in paras)) or k <= 0.5:
+                ls = [ln for sg in segs for ln in wrap_balanced(sg, st, max_w)]
+                paras.append((ls, st, st.size * 1.12, len(segs)))
+        height = sum(p * len(ls) for ls, _, p, _ in paras) + gap * k * (len(paras) - 1)
+        if (height <= avail and all(len(ls) <= max(3, n) for ls, _, _, n in paras)) or k <= 0.5:
             break
         k -= 0.04
     top = y_max
     band(im, top, H, BROWN)
     y = top + (H - top - height) / 2
-    for ls, st, p in paras:
+    for ls, st, p, _ in paras:
         for ln in ls:
             y += p
             draw_line(d, ln, fit(ln, st, max_w), 600, y - p * 0.22)
@@ -287,15 +304,16 @@ def sibling_no_photo(ctx: Ctx, s: dict) -> Image.Image:
     for i, ln in enumerate([x for x in lines if x]):
         draw_line(d, ln, fit(ln, st.scaled(k), 1100, 0.5), 600, 521 + i * 254 * k)
     band(im, 1181, 1473, BROWN)
-    det = [f"{x['who']}: {x['text']}" if x.get("who") else x.get("text", "") for x in s.get("details", [])]
-    det = [x for x in det if x]
+    det = [t for t in (_detail_segments(x) for x in s.get("details", [])) if t]
+    lines = [ln for t in det for ln in t]                 # a line break typed in the form = a new line here
     out = []
-    if len(det) == 1:
-        ls, st2 = wrap_fit(det[0], Style(gu="akhand_xb", lat="poppins_sb", size=104.2, color=WHITE), 1100, 2, 0.6)
+    if len(lines) == 1:
+        ls, st2 = wrap_fit(lines[0], Style(gu="akhand_xb", lat="poppins_sb", size=104.2, color=WHITE), 1100, 2, 0.6)
         out = [(ln, st2) for ln in ls]
-    else:
-        for x in det[:3]:
-            out.append((x, fit(x, Style(gu="akhand_xb", lat="poppins_sb", size=78, color=WHITE), 1100, 0.6)))
+    elif lines:
+        size = 104.2 if len(det) == 1 and len(lines) == 2 else 78 * min(1.0, 3 / len(lines))
+        for x in lines:
+            out.append((x, fit(x, Style(gu="akhand_xb", lat="poppins_sb", size=size, color=WHITE), 1100, 0.6)))
     if out:
         pitch = max(st2.size for _, st2 in out) * 1.22
         first = (1181 + 1473) / 2 - pitch * (len(out) - 1) / 2 + out[0][1].size * 0.36

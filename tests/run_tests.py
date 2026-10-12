@@ -250,6 +250,25 @@ def main():
     long_ = sib([{"who": "અ", "text": "HouseWife"}, {"who": "બ", "text": "Professor at Sample Institute of Technology, Anand"}])
     check("sibling band: same size for short and long text", all(isb(im, 1130) and isb(im, 1490) and not isb(im, 1110) for im in (short, long_)))
 
+    # a line break typed in the form's text box = a new line on the card (CT, 12 Oct 2026)
+    def rows(im, y0=1122, y1=1500):            # number of text lines (runs of rows with white ink) in the band
+        n, inside = 0, False
+        for y in range(y0, y1):
+            ink = any(min(im.getpixel((x, y))) > 235 for x in range(40, 1160, 3))
+            n, inside = n + (ink and not inside), ink
+        return n
+    check("typed line breaks: kept, spaces / empty lines tidied",
+          cards.hard_lines("Masters in Mass Media\r\n\r\n  HouseWife ") == ["Masters in Mass Media", "HouseWife"]
+          and cards.hard_lines(None) == [])
+    br = sib([{"who": "અ", "text": "Masters in Mass Media\nHouseWife"},
+              {"who": "બ", "text": "M S in Information Technology (IT)\nWorking at Google, Bangalore"}])
+    sp = sib([{"who": "અ", "text": "Masters in Mass Media HouseWife"},
+              {"who": "બ", "text": "M S in Information Technology (IT) Working at Google, Bangalore"}])
+    check("typed line breaks: 4 lines on the sibling card (without: 3)", rows(br) == 4 and rows(sp) == 3, f"{rows(br)} / {rows(sp)}")
+    one = cards.sibling_no_photo(cards.Ctx("girl", ROOT, "clear"),
+                                 {"relation": "bahen", "display_name": "x y", "details": [{"who": "", "text": "Masters in Mass Media\nHouseWife"}]}).convert("RGB")
+    check("typed line breaks: sibling card without photo too", rows(one, 1181, 1473) == 2, str(rows(one, 1181, 1473)))
+
     r = subprocess.run([sys.executable, "render.py", str(sample), "--fast"], cwd=ROOT, capture_output=True, text=True)
     mp4 = ROOT / "out" / "sample-girl" / "preview.mp4"
     check("sample preview video renders", r.returncode == 0 and mp4.exists(), r.stderr[-200:])
