@@ -9,7 +9,7 @@ from .config import VOICE_LAST_SECTION
 from .narration import scene_text
 
 DEFAULT_ORDER = ["intro", "hero", "dada_dadi", "nana_nani", "parents", "mother", "father",
-                 "siblings", "education", "work", "past", "property", "gallery"]
+                 "siblings", "education", "work", "past", "awards", "property", "gallery"]
 
 
 @dataclass
@@ -64,6 +64,8 @@ def build(p: dict, base: Path, images: bool = True) -> tuple[list[Scene], cards.
             out.append(Scene("work", "card", mk(lambda: cards.work(ctx, p["work"], first, work_fb)), scene_text("work", p, p["work"])))
         elif sec == "past" and cards.past_items(p.get("work")):     # after the occupation card: music only
             out.append(Scene("past", "card", mk(lambda: cards.past_experience(ctx, cards.past_items(p["work"]), first)), ""))
+        elif sec == "awards" and cards.award_items(p) and not (has_gal and cards.single_award(p)):   # music only
+            out.append(Scene("awards", "card", mk(lambda: cards.awards_card(ctx, cards.award_items(p), first)), ""))
         elif sec == "property" and p.get("property") and not (has_gal and cards.single_property(p)):
             out.append(Scene("property", "card", mk(lambda: cards.property_card(ctx, p["property"], first)),
                              scene_text("property", p, p["property"])))

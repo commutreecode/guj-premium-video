@@ -194,8 +194,23 @@ def main():
     check("one property line: no Income / Property card", "property" not in [x.id for x in sc])
     subs = cards.gallery_sublines(cx, pp)
     check("one property line: in the gallery strip after a theme-colour bullet (no PROPERTY: word)",
-          any(st[0] == "ticker" and st[1].width < 120 and st[2].width > 300 for st, _ in subs[1:2]))
-    check("long hobby text: time to scroll to its end", subs[0][1] > cards.STATIC_SECONDS + 2, f"{subs[0][1]:.1f} s")
+          any(st[0] == "ticker" and st[1].width < 120 and st[2].width > 300 for st, _ in subs[0:1]))
+    check("long hobby text: time to scroll to its end", subs[1][1] > cards.STATIC_SECONDS + 2, f"{subs[1][1]:.1f} s")
+    # one award + one property line: strip order award, property, hobby, સમાજ, info; 2-3 awards: own card (music only)
+    pp["awards"] = ["Gold medal in Sample University"]
+    subs = cards.gallery_sublines(cx, pp)
+    check("strip order: award, property, hobby, sect, info",
+          [st[0] for st, _ in subs][:3] == ["ticker"] * 3 and subs[0][0][1].width < 120 and subs[1][0][1].width < 120
+          and subs[2][0][1].width > 120 and [st[0] for st, _ in subs][3:] == ["static", "static"], str(len(subs)))
+    ids = [x.id for x in scenes.build(pp, ROOT / "samples", images=False)[0]]
+    check("one award: no awards card", "awards" not in ids)
+    pp["awards"] = ["Gold medal in Sample University", "Best Employee 2024", "State level chess"]
+    sc = scenes.build(pp, ROOT / "samples", images=False)[0]
+    ids = [x.id for x in sc]
+    check("2-3 awards: own card after past experience, before the gallery, no voice",
+          "awards" in ids and ids.index("awards") == ids.index("past") + 1 and not sc[ids.index("awards")].text)
+    check("awards card renders", cards.awards_card(cards.Ctx("boy", ROOT, "clear"), cards.award_items(pp), "x").size == (1200, 1500))
+    pp.pop("awards")
     pp["property"] = ["Income: 10-20 Lakhs", "Residence 2BHK at Sample Nagar"]
     check("two property lines: own card as before", "property" in [x.id for x in scenes.build(pp, ROOT / "samples", images=False)[0]])
 

@@ -626,6 +626,29 @@ def ticker_parts(ctx: Ctx, hobbies: list, label: str = "HOBBY:"):
     return li, ti
 
 
+def award_items(p: dict) -> list:
+    """Awards / achievements (max 3 lines)."""
+    return [str(x).strip() for x in (p.get("awards") or []) if str(x).strip()][:3]
+
+
+def single_award(p: dict):
+    """The text when the profile has exactly ONE award / achievement line: shown in the gallery's white strip
+    (first, before the property line and the hobbies) instead of an own card. Otherwise None."""
+    a = award_items(p)
+    return a[0] if len(a) == 1 else None
+
+
+def awards_card(ctx: Ctx, items: list, first: str) -> Image.Image:
+    """2-3 awards / achievements: own card after the occupation (and past experience) card, music only."""
+    im = canvas(ctx)
+    d = ImageDraw.Draw(im)
+    title1(d, f"{first} નો પરિચય")
+    title2(d, ctx, "Awards / Achievements:", 166.7, 521, upper=True)
+    bullet_list(im, d, items, ctx.accent, "square", 86, 176, 1131, 753, 93, 1440,
+                b_side=70, b_off=63, line_k=1.39, gap_k=1.04)
+    return im
+
+
 def single_property(p: dict):
     """The text when the profile has exactly ONE Income / Property line: it is shown in the gallery's white strip
     after a theme-colour bullet (no "PROPERTY:" word) instead of an own card. Otherwise None."""
@@ -641,12 +664,15 @@ def gallery_sublines(ctx: Ctx, p: dict) -> list:
     state = ("ticker", label_img, text_img) or ("static", img). A long ticker scrolls ONCE to its end (never cut)."""
     from .config import TIMING
     out = []
-    tick = []
-    if p.get("hobbies"):
-        tick.append(ticker_parts(ctx, p["hobbies"]))
+    tick = []                          # order (CT, 12 Oct 2026): one award, one property line, hobbies, સમાજ, info
+    sa = single_award(p)
+    if sa:
+        tick.append(ticker_parts(ctx, [sa], None))
     sp = single_property(p)
     if sp:
         tick.append(ticker_parts(ctx, [sp], None))
+    if p.get("hobbies"):
+        tick.append(ticker_parts(ctx, p["hobbies"]))
     for li, ti in tick:
         avail = W - li.width - 20
         need = STATIC_SECONDS if ti.width <= avail else 0.8 + (ti.width - avail) / TIMING["ticker_px_s"] + 1.4
