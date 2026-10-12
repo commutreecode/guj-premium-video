@@ -177,6 +177,12 @@ def main():
     check("past experience: up to 3 items", len(cards.past_items({"past": past})) == 3 and cards.past_items({"past": "X"}) == [{"text": "X", "logo": None}])
     jc = cards.past_experience(ctx, cards.past_items({"past": past}), "x").convert("RGB")
     check("past experience card: logo drawn", green((0, 560, 1200, 1440)))
+    jcp = cards.past_experience(ctx, cards.past_items({"past": past}), "x", "samples/photos/g2.jpg").convert("RGB")
+    jw = cards.work(ctx, job, "x", "samples/photos/g2.jpg").convert("RGB")
+    jc = jcp
+    check("past experience card with a candidate photo: photo on the right like the occupation card, logo + text left",
+          ImageChops.difference(jcp.crop((830, 560, 1190, 1300)), jw.crop((830, 560, 1190, 1300))).getbbox() is None
+          and green((0, 560, 800, 1440)))
     jp = cards.work(ctx, dict(job, past=past), "x", "samples/photos/g2.jpg").convert("RGB")
     j0 = cards.work(ctx, job, "x", "samples/photos/g2.jpg").convert("RGB")
     check("past experience: not on the occupation card", ImageChops.difference(jp, j0).getbbox() is None)

@@ -700,34 +700,40 @@ def past_items(w: dict) -> list:
     return out[:3]
 
 
-def past_experience(ctx: Ctx, items: list, first: str) -> Image.Image:
-    """Card after the occupation card: up to 3 past jobs, each with its company logo above the text (music only)."""
+def past_experience(ctx: Ctx, items: list, first: str, fallback_photo=None) -> Image.Image:
+    """Card after the occupation card: up to 3 past jobs, each with its company logo above the text (music only).
+    With a candidate photo: photo on the right like the occupation card, logos + text left-aligned on the left."""
     im = canvas(ctx)
     d = ImageDraw.Draw(im)
     title1(d, f"{first} નો પરિચય")
     title2(d, ctx, "Past Experience:", 166.7, 521, upper=True)
+    ph = ctx.photo(fallback_photo)
+    if ph:
+        imgs.paste_photo(im, ph, (840, 582, 1174, 1284), 66, ctx.privacy)
+    x, align, maxw = (50, "left", 740) if ph else (600, "center", 1080)
     n = len(items)
     k = 1.0
     while True:
         blocks = []
         for it in items:
-            lg = _logo_img(ctx.photo(it["logo"]).load(), int(560 * k), int((210 if n == 1 else 150) * k)) if it.get("logo") else None
+            lg = (_logo_img(ctx.photo(it["logo"]).load(), int(min(560, maxw) * k), int((210 if n == 1 else 150) * k))
+                  if it.get("logo") else None)
             st = Style(gu="akhand_xb", lat="barlow_b", size=(78 if n == 1 else 68) * k, color=BLACK)
-            ls, st = wrap_fit(it["text"], st, 1080, 2, 0.7)
+            ls, st = wrap_fit(it["text"], st, maxw, 2 if not ph else 3, 0.7)
             blocks.append((lg, ls, st, st.size * 1.25))
         gap = 70 * k
         height = sum((lg.height + 26 * k if lg else 0) + p * len(ls) for lg, ls, _, p in blocks) + gap * (n - 1)
         if height <= 1440 - 600 or k < 0.6:
             break
         k -= 0.05
-    y = 600 + (840 - height) / 2
+    # vertical centre: the photo's (582..1284) when there is one, else the free area (600..1440)
+    y = max(560, 933 - height / 2) if ph else 600 + (840 - height) / 2
     for lg, ls, st, p in blocks:
         if lg:
-            im.paste(lg, (int(600 - lg.width / 2), int(y)), lg)
+            _paste_logo(im, lg, x, align, y)
             y += lg.height + 26 * k
         for ln in ls:
             y += p
-            draw_line(d, ln, st, 600, y - p * 0.22)
+            draw_line(d, ln, st, x, y - p * 0.22, align)
         y += gap
     return im
-

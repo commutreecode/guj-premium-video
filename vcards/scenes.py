@@ -33,6 +33,7 @@ def build(p: dict, base: Path, images: bool = True) -> tuple[list[Scene], cards.
     cand = [] if ctx.privacy == "hide" else (list(ph.get("gallery") or []) or ([ph["hero"]] if ph.get("hero") else []))
     edu_fb = cand[0] if cand else None
     work_fb = cand[1] if len(cand) > 1 else edu_fb
+    past_fb = cand[2] if len(cand) > 2 else work_fb      # past experience card: another candidate photo on the right
     par_ph = (p.get("parents") or {}).get("photos") or []
     couple = par_ph[0] if len(par_ph) == 1 else None
     def mk(f):
@@ -63,7 +64,7 @@ def build(p: dict, base: Path, images: bool = True) -> tuple[list[Scene], cards.
         elif sec == "work" and p.get("work"):
             out.append(Scene("work", "card", mk(lambda: cards.work(ctx, p["work"], first, work_fb)), scene_text("work", p, p["work"])))
         elif sec == "past" and cards.past_items(p.get("work")):     # after the occupation card: music only
-            out.append(Scene("past", "card", mk(lambda: cards.past_experience(ctx, cards.past_items(p["work"]), first)), ""))
+            out.append(Scene("past", "card", mk(lambda: cards.past_experience(ctx, cards.past_items(p["work"]), first, past_fb)), ""))
         elif sec == "awards" and cards.award_items(p) and not (has_gal and cards.single_award(p)):   # music only
             out.append(Scene("awards", "card", mk(lambda: cards.awards_card(ctx, cards.award_items(p), first)), ""))
         elif sec == "property" and p.get("property") and not (has_gal and cards.single_property(p)):
