@@ -294,6 +294,10 @@ def main():
         return n
     check("business name typed on 2 lines: kept as lines (4 rows: 2 + 2 wrapped), short name: 1 row",
           dark_rows(bt) == 4 and dark_rows(bs) == 1, f"{dark_rows(bt)} / {dark_rows(bs)}")
+    b3 = cards.work(bctx, dict(long_c, company="Shree Kailashpati Saw Mill, Kurundwad-Kolhapur\n+ Construction Contractor"),
+                    "x", "photos/g3.jpg").convert("RGB")
+    check("a typed line that nearly fits stays whole (2 + 1 rows), not into the photo",
+          dark_rows(b3) == 3 and not dark_in(b3, (800, 560, 838, 1440)), str(dark_rows(b3)))
 
     # a line break typed in the form's text box = a new line on the card (CT, 12 Oct 2026)
     def rows(im, y0=1122, y1=1500):            # number of text lines (runs of rows with white ink) in the band

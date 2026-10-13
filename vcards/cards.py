@@ -594,12 +594,19 @@ def _business_flow(im, d, ctx: Ctx, w: dict, comp: list, ph, right: int, x: int,
     free area 560..1440; sizes shrink together until everything fits."""
     maxw = right - 50 if ph else 1100
     desc = hard_lines(w.get("desc"))
+    base = Style(gu="akhand_xb", lat="barlow_xb", size=91.1, color=BLACK)
+    # typed lines: each stays ONE line when all of them fit at >= 70 % (same size for all); else wrapped
+    single = None
+    if len(comp) > 1:
+        single = next((s1 for s1 in (1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7)
+                       if all(measure(seg, base.scaled(s1)) <= maxw for seg in comp)), None)
     k = 1.0
     while True:
         blocks, ok = [], True
-        st = Style(gu="akhand_xb", lat="barlow_xb", size=91.1 * k, color=BLACK)
-        for seg in comp:                                   # each typed line: max 2 lines (one long name: 3), evenly broken
-            ls = wrap_balanced(seg, st, maxw)
+        st = base.scaled(k * (single or 1.0))
+        for seg in comp:                                   # max 2 lines per typed line (one long name: 3), evenly broken
+            # a typed line that nearly fits (>= 85 % size) stays whole: fit() shrinks just that line a little
+            ls = [seg] if single or measure(seg, st.scaled(0.85)) <= maxw else wrap_balanced(seg, st, maxw)
             ok = ok and len(ls) <= (3 if len(comp) == 1 else 2)
             blocks += [(ln, st, st.size * 1.12) for ln in ls]
         n_comp = len(blocks)
