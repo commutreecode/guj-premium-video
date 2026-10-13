@@ -260,7 +260,17 @@ def main():
     isb = lambda im, y: max(abs(a - b) for a, b in zip(im.getpixel((10, y)), ImageColor.getrgb(BROWN))) < 6
     short = sib([{"who": "અ", "text": "Service"}, {"who": "બ", "text": "Service"}])
     long_ = sib([{"who": "અ", "text": "HouseWife"}, {"who": "બ", "text": "Professor at Sample Institute of Technology, Anand"}])
-    check("sibling band: same size for short and long text", all(isb(im, 1130) and isb(im, 1490) and not isb(im, 1110) for im in (short, long_)))
+    check("sibling band: long text keeps the band at 1122", isb(long_, 1130) and isb(long_, 1490) and not isb(long_, 1110))
+    one = sib([{"who": "", "text": "Student"}])
+    check("sibling band: one short line -> shorter band, photo grows (CT, 13 Oct 2026)",
+          not isb(one, 1200) and isb(one, 1300) and isb(one, 1490) and isb(short, 1490) and not isb(short, 1110))
+    pj = lambda jobs: cards.single_parent(cards.Ctx("boy", ROOT / "samples", "clear"), "father", {"name": "x", "jobs": jobs},
+                                          "photos/couple.jpg").convert("RGB")
+    j2 = pj([{"type": "Business", "name": "Shree Sample Saw Mill, Kurundwad-Kolhapur", "desc": "Retailer of Building Material"},
+             {"type": "Own Business", "name": "Sample Construction Contractor", "desc": ""}])
+    check("parent Type / Name / Work: band never taller than 1161..1471, photo ends above it",
+          isb(j2, 1165) and isb(j2, 1468) and not isb(j2, 1150) and not isb(j2, 1490)
+          and not any(max(abs(a - b) for a, b in zip(j2.getpixel((600, y)), ImageColor.getrgb(BROWN))) < 6 for y in (1126, 1140)))
 
     # dada-dadi / nana-nani / parents without photos: big dark-brown name in the middle, place in the band (CT, 13 Oct 2026)
     nb = ImageColor.getrgb(cards.NAME_BROWN)

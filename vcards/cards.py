@@ -200,6 +200,52 @@ def _family_pair_no_photo(im, d, ctx: Ctx, kind: str, d_: dict) -> Image.Image:
     return im
 
 
+def parent_jobs(d_: dict) -> list:
+    """The app's Type / Name / Work rows of a parent (max 4): [{type, name, desc}]; [] for older profiles."""
+    out = []
+    for j in (d_.get("jobs") or [])[:4]:
+        j = {k: " ".join(str((j or {}).get(k) or "").split()) for k in ("type", "name", "desc")}
+        j["desc"] = re.sub(r"^\((.*)\)$", r"\1", j["desc"]).strip()
+        if j["type"] or j["name"] or j["desc"]:
+            out.append(j)
+    return out
+
+
+def _jobs_band(jobs: list, bottom: int = 1471, top: int = 1161):
+    """Brown band for a parent's jobs, never taller than the approved band (1161..1471): per job the type (small),
+    the name (larger) and the work (medium); everything shrinks together to fit. Returns (band top, draw function)."""
+    SZ = {"type": 58.0, "name": 78.0, "desc": 64.0}
+    n_lines = sum(1 for j in jobs for r in ("type", "name", "desc") if j[r])
+    pad = 34 if n_lines <= 3 else 20
+    room = bottom - top - 2 * pad
+    k = 1.0
+    while True:
+        rows = []                                        # (text, style, pitch, gap_before)
+        for i, j in enumerate(jobs):
+            first = True
+            for role in ("type", "name", "desc"):
+                if not j[role]:
+                    continue
+                st = Style(gu="akhand_xb", lat="poppins_sb", size=SZ[role] * k, color=WHITE)
+                # one line (shrunk a little if needed); only a very long name is wrapped into 2 lines
+                ls = [j[role]] if measure(j[role], st.scaled(0.72)) <= 1120 else wrap_balanced(j[role], st, 1120)[:2]
+                for ln in ls:
+                    rows.append((ln, st, st.size * 1.18, 18 * k if (first and i) else 0))
+                    first = False
+        total = sum(p + g for _, _, p, g in rows)
+        if total <= room or k <= 0.5:
+            break
+        k -= 0.03
+
+    def draw(im, d):
+        band(im, top, bottom, BROWN)
+        y = top + (bottom - top - total) / 2
+        for ln, st, p, g in rows:
+            y += g + p
+            draw_line(d, ln, fit(ln, st, 1120, 0.72), 600, y - p * 0.24)
+    return top, draw
+
+
 def single_parent(ctx: Ctx, rel: str, d_: dict, fallback_photo=None) -> Image.Image:
     im = canvas(ctx)
     d = ImageDraw.Draw(im)
@@ -208,12 +254,25 @@ def single_parent(ctx: Ctx, rel: str, d_: dict, fallback_photo=None) -> Image.Im
     title2(d, ctx, f"{label}: {d_.get('name', '')}".strip(": "), 126.7, 480)
     # own photo, else the parents' couple photo (wide frame), else a text panel
     ph = ctx.photo(d_.get("photo")) or ctx.photo(fallback_photo)
-    if ph:
-        box = (220, 559, 980, 1172) if _aspect(ph) >= 0.9 else (359, 559, 841, 1172)
-        imgs.paste_photo(im, ph, box, 88)
+    jobs = parent_jobs(d_)
     occ = d_.get("occupation") or []
     if isinstance(occ, str):
         occ = [occ]
+    if jobs:
+        occ = [t for j in jobs for t in (j["type"], j["name"], j["desc"]) if t]
+    if ph and jobs and len(occ) > 1:
+        # Type / Name / Work rows from the app (CT, 13 Oct 2026): type small, name larger, work medium; the band
+        # grows upwards for 2+ jobs and the photo always ends 36 px above it (never touching the band)
+        top, draw_band = _jobs_band(jobs)
+        y1 = top - 36
+        box = (220, 559, 980, y1) if _aspect(ph) >= 0.9 else (359, 559, 841, y1)
+        imgs.paste_photo(im, ph, box, 88)
+        draw_band(im, d)
+        return im
+    if ph:
+        y1 = 1172 if len(occ) <= 1 else 1125           # multi-line band starts at 1161: keep a margin above it
+        box = (220, 559, 980, y1) if _aspect(ph) >= 0.9 else (359, 559, 841, y1)
+        imgs.paste_photo(im, ph, box, 88)
     if not ph:
         imgs.fill_rrect(im, (92, 600, 1108, 1180), 88, BROWN)
         st = Style(gu="akhand_xb", lat="poppins_sb", size=80, color=WHITE)
@@ -268,9 +327,10 @@ def sibling(ctx: Ctx, s: dict) -> Image.Image:
         boxes = [(220, 494, 980, 1108)]
     else:
         boxes = [(357, 490, 844, 1109)]
-    for ph, box in zip(photos, boxes):
-        imgs.paste_photo(im, ph, box, 88)
-    _sibling_details(im, d, s.get("details", []))
+    top, draw_band = _sibling_band(s.get("details", []))
+    for ph, box in zip(photos, boxes):          # a shorter band (short text): the photo grows, same margin above it
+        imgs.paste_photo(im, ph, (box[0], box[1], box[2], box[3] + top - 1122), 88)
+    draw_band(im, d)
     return im
 
 
@@ -289,39 +349,56 @@ def _detail_segments(x: dict) -> list[str]:
 
 
 def _sibling_details(im, d, details, y_max=1122, pad=52, max_w=1120):
-    """Brown band at the bottom (always y_max..H, same on every card) with one paragraph per person
-    ("who: text"): a long text continues after the name and wraps; a line break typed in the form starts a
-    new line on the card too; a little space between people."""
+    _, draw = _sibling_band(details, y_max, pad, max_w)
+    draw(im, d)
+
+
+def _sibling_band(details, y_max=1122, pad=52, max_w=1120):
+    """Brown band at the bottom (y_max..H) with one paragraph per person ("who: text"): a long text continues after
+    the name and wraps; a line break typed in the form starts a new line too; a little space between people.
+    Short text (every paragraph one line): larger letters (up to 125 %) and a shorter band (CT, 13 Oct 2026).
+    Returns (band top, draw function)."""
     texts = [t for t in (_detail_segments(x) for x in details) if t]
     if not texts:
-        band(im, y_max, H, BROWN)
-        return
+        return y_max, lambda im, d: band(im, y_max, H, BROWN)
     if sum(len(t) for t in texts) > 3:        # 4+ typed lines: less empty band above / below, so the text stays big
         pad = 26
     gap, avail = 26, H - y_max - 2 * pad
     st1 = Style(gu="akhand_xb", lat="poppins_sb", size=83.3, lat_scale=0.85, color=WHITE)
-    k = 1.0
-    while True:      # largest size at which every paragraph (max 3 lines, or its typed lines) fits the band
-        paras = []
-        for segs in texts:
-            if len(segs) == 1 and measure(segs[0], st1.scaled(k)) <= max_w * 1.12:   # one line (squeezed a little)
-                paras.append(([segs[0]], fit(segs[0], st1.scaled(k), max_w, 0.88), 83.3 * k * 1.12, 1))
-            else:                                  # continues after the name, wrapped; typed lines stay lines
-                st = st1.scaled(k * 0.86)
-                ls = [ln for sg in segs for ln in wrap_balanced(sg, st, max_w)]
-                paras.append((ls, st, st.size * 1.12, len(segs)))
-        height = sum(p * len(ls) for ls, _, p, _ in paras) + gap * k * (len(paras) - 1)
-        if (height <= avail and all(len(ls) <= max(3, n) for ls, _, _, n in paras)) or k <= 0.5:
-            break
-        k -= 0.04
-    top = y_max
-    band(im, top, H, BROWN)
-    y = top + (H - top - height) / 2
-    for ls, st, p, _ in paras:
-        for ln in ls:
-            y += p
-            draw_line(d, ln, fit(ln, st, max_w), 600, y - p * 0.22)
-        y += gap * k
+    short = all(len(t) == 1 and measure(t[0], st1) <= max_w for t in texts)
+    if short:
+        k = 1.25
+        while k > 1.0 and not all(measure(t[0], st1.scaled(k)) <= max_w for t in texts):
+            k -= 0.05
+        paras = [([t[0]], st1.scaled(k), 83.3 * k * 1.12, 1) for t in texts]
+        height = sum(p for _, _, p, _ in paras) + gap * k * (len(paras) - 1)
+        top = int(max(y_max, H - height - 2 * pad))
+    else:
+        k = 1.0
+        while True:      # largest size at which every paragraph (max 3 lines, or its typed lines) fits the band
+            paras = []
+            for segs in texts:
+                if len(segs) == 1 and measure(segs[0], st1.scaled(k)) <= max_w * 1.12:   # one line (squeezed a little)
+                    paras.append(([segs[0]], fit(segs[0], st1.scaled(k), max_w, 0.88), 83.3 * k * 1.12, 1))
+                else:                                  # continues after the name, wrapped; typed lines stay lines
+                    st = st1.scaled(k * 0.86)
+                    ls = [ln for sg in segs for ln in wrap_balanced(sg, st, max_w)]
+                    paras.append((ls, st, st.size * 1.12, len(segs)))
+            height = sum(p * len(ls) for ls, _, p, _ in paras) + gap * k * (len(paras) - 1)
+            if (height <= avail and all(len(ls) <= max(3, n) for ls, _, _, n in paras)) or k <= 0.5:
+                break
+            k -= 0.04
+        top = y_max
+
+    def draw(im, d):
+        band(im, top, H, BROWN)
+        y = top + (H - top - height) / 2
+        for ls, st, p, _ in paras:
+            for ln in ls:
+                y += p
+                draw_line(d, ln, fit(ln, st, max_w), 600, y - p * 0.22)
+            y += gap * k
+    return top, draw
 
 
 def sibling_no_photo(ctx: Ctx, s: dict) -> Image.Image:
