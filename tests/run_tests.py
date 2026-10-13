@@ -308,6 +308,22 @@ def main():
                     "x", "photos/g3.jpg").convert("RGB")
     check("a typed line that nearly fits stays whole (2 + 1 rows), not into the photo",
           dark_rows(b3) == 3 and not dark_in(b3, (800, 560, 838, 1440)), str(dark_rows(b3)))
+    # 2-4 businesses (app rows Name / Work): stacked on the occupation card, text from the top without a logo
+    bb = {"style": "business", "company": "Shree Sample Saw Mill, Kurundwad-Kolhapur", "desc": "Retailer of Building Material",
+          "businesses": [{"name": "Shree Sample Saw Mill, Kurundwad-Kolhapur", "desc": "Retailer of Building Material"},
+                         {"name": "Sample Construction Contractor", "desc": ""}]}
+    b4 = cards.work(bctx, bb, "x", "photos/g3.jpg").convert("RGB")
+    top_ink = next((y for y in range(560, 1440) if any(max(b4.getpixel((x, y))) < 60 for x in range(40, 800, 3))), 9999)
+    check("2 businesses: stacked (3-4 name rows), text starts at the photo top, not into the photo",
+          dark_rows(b4) in (3, 4) and top_ink < 640 and not dark_in(b4, (800, 560, 838, 1440)), f"{dark_rows(b4)} rows, top {top_ink}")
+    from vcards.narration import scene_text
+    pb = {"name": "x", "first_name": "x", "work": bb}
+    nb = scene_text("work", pb, bb)
+    check("narration: one sentence per business",
+          nb == "x નુ ઓક્યુપેશન. Shree Sample Saw Mill, Kurundwad-Kolhapur, Retailer of Building Material. Sample Construction Contractor.", nb)
+    nf = scene_text("father", pb, {"jobs": [{"type": "Business", "name": "Shree Sample Saw Mill, Kurundwad-Kolhapur", "desc": "x"},
+                                            {"type": "Job", "name": "Sample Bank, Kolhapur", "desc": ""}]})
+    check("narration: parent rows, the candidate's own business says only its type", nf == "પિતા. Business, Job, Sample Bank, Kolhapur.", nf)
 
     # a line break typed in the form's text box = a new line on the card (CT, 12 Oct 2026)
     def rows(im, y0=1122, y1=1500):            # number of text lines (runs of rows with white ink) in the band

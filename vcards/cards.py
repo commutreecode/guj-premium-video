@@ -643,10 +643,13 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
     x_left = 50 if ph else 600
     align = "left" if ph else "center"
     comp_st = Style(gu="akhand_xb", lat="barlow_xb", size=91.1, color=BLACK)
+    bizs = business_items(w)
     comp = hard_lines(w.get("company"))
-    # long name (would run into the photo even at the smallest size) or typed line breaks: wrapped layout
-    if len(comp) > 1 or (comp and measure(comp[0], comp_st.scaled(0.6)) > right - 20) or len(hard_lines(w.get("desc"))) > 1:
-        return _business_flow(im, d, ctx, w, comp, ph, right, x_left, align)
+    # 2-4 businesses, a long name (would run into the photo even at the smallest size) or typed line breaks:
+    # stacked / wrapped layout
+    if len(bizs) > 1 or len(comp) > 1 or (comp and measure(comp[0], comp_st.scaled(0.6)) > right - 20) \
+            or len(hard_lines(w.get("desc"))) > 1:
+        return _business_flow(im, d, ctx, w, bizs, ph, right, x_left, align)
     y_company, y_desc = 999, 1178
     if w.get("logo") or w.get("_logo_photo"):
         lg = imgs.contain(_logo_src(ctx, w), 353, 328) if w.get("logo") else _logo_img(_logo_src(ctx, w), 353, 328)
@@ -665,53 +668,72 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
     return im
 
 
-def _business_flow(im, d, ctx: Ctx, w: dict, comp: list, ph, right: int, x: int, align: str) -> Image.Image:
-    """Business card when the company name is long or typed on several lines (or the description has line breaks):
-    logo, company lines (bold, wrapped, never into the photo) and description lines stacked and centred in the
-    free area 560..1440; sizes shrink together until everything fits."""
+def business_items(w: dict) -> list:
+    """The candidate's businesses: work.businesses [{name, desc}] (app rows, max 4) or the single company / desc."""
+    out = []
+    for x in (w.get("businesses") or [])[:4]:
+        n, ds = str((x or {}).get("name") or "").strip(), str((x or {}).get("desc") or "").strip()
+        if n or ds:
+            out.append({"name": n, "desc": ds})
+    if not out and (w.get("company") or w.get("desc")):
+        out.append({"name": str(w.get("company") or ""), "desc": str(w.get("desc") or "")})
+    return out
+
+
+def _business_flow(im, d, ctx: Ctx, w: dict, bizs: list, ph, right: int, x: int, align: str) -> Image.Image:
+    """Business card when there are 2-4 businesses, the company name is long or typed on several lines (or the
+    description has line breaks): logo, then per business the name lines (bold, wrapped, never into the photo) and
+    the description lines, stacked; sizes shrink together until everything fits. Centred with a logo; without a
+    logo the text starts at the top of the photo (CT, 13 Oct 2026)."""
     maxw = right - 50 if ph else 1100
-    desc = hard_lines(w.get("desc"))
     base = Style(gu="akhand_xb", lat="barlow_xb", size=91.1, color=BLACK)
+    parts = [(hard_lines(b["name"]), hard_lines(b["desc"])) for b in bizs]
+    multi = len(parts) > 1
+    all_comp = [seg for comp, _ in parts for seg in comp]
     # typed lines: each stays ONE line when all of them fit at >= 70 % (same size for all); else wrapped
     single = None
-    if len(comp) > 1:
+    if len(all_comp) > 1:
         single = next((s1 for s1 in (1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7)
-                       if all(measure(seg, base.scaled(s1)) <= maxw for seg in comp)), None)
-    k = 1.0
+                       if all(measure(seg, base.scaled(s1)) <= maxw for seg in all_comp)), None)
+    k = 0.85 if multi else 1.0                            # several businesses: start a little smaller
     while True:
-        blocks, ok = [], True
-        st = base.scaled(k * (single or 1.0))
-        for seg in comp:                                   # max 2 lines per typed line (one long name: 3), evenly broken
-            # a typed line that nearly fits (>= 85 % size) stays whole: fit() shrinks just that line a little
-            ls = [seg] if single or measure(seg, st.scaled(0.85)) <= maxw else wrap_balanced(seg, st, maxw)
-            ok = ok and len(ls) <= (3 if len(comp) == 1 else 2)
-            blocks += [(ln, st, st.size * 1.12) for ln in ls]
-        n_comp = len(blocks)
-        kd = max(k, 0.8)                                   # the description keeps a readable size
-        st = Style(gu="akhand_xb", lat="barlow_b", size=66.7 * kd, color=ctx.accent)
-        for seg in desc:
-            ls = wrap_balanced(seg, st, maxw)
-            ok = ok and len(ls) <= 3
-            blocks += [(ln, st, 85.4 * kd) for ln in ls]
-        gap = 40 * k if n_comp and len(blocks) > n_comp else 0
-        text_h = sum(p for _, _, p in blocks) + gap
+        blocks, ok = [], True                             # (line, style, pitch, gap_before)
+        for bi, (comp, desc) in enumerate(parts):
+            gap_b = (56 * k) if bi else 0
+            st = base.scaled(k * (single or 1.0))
+            for seg in comp:                             # max 2 lines per typed line (one long name: 3), evenly broken
+                # a typed line that nearly fits (>= 85 % size) stays whole: fit() shrinks just that line a little
+                ls = [seg] if single or measure(seg, st.scaled(0.78 if multi else 0.85)) <= maxw \
+                    else wrap_balanced(seg, st, maxw)
+                ok = ok and len(ls) <= (3 if len(comp) == 1 and not multi else 2)
+                for ln in ls:
+                    blocks.append((ln, st, st.size * 1.12, gap_b))
+                    gap_b = 0
+            kd = max(k, 0.8) if not multi else k          # the description keeps a readable size
+            std = Style(gu="akhand_xb", lat="barlow_b", size=66.7 * kd, color=ctx.accent)
+            first_d = True
+            for seg in desc:
+                ls = wrap_balanced(seg, std, maxw)
+                ok = ok and len(ls) <= 3
+                for ln in ls:
+                    blocks.append((ln, std, 85.4 * kd, (gap_b or (20 * k if comp and first_d else 0))))
+                    gap_b, first_d = 0, False
+        text_h = sum(p + g for _, _, p, g in blocks)
         room = 1440 - 560 - text_h - 40
         lg = None
         if (w.get("logo") or w.get("_logo_photo")) and room >= 90:
             box = (min(353, maxw), min(328, room))
             lg = imgs.contain(_logo_src(ctx, w), *box) if w.get("logo") else _logo_img(_logo_src(ctx, w), *box)
         total = text_h + (lg.height + 40 if lg else 0)
-        if (ok and total <= 1440 - 560) or k <= 0.55:
+        if (ok and total <= 1440 - 560) or k <= 0.5:
             break
         k -= 0.05
-    y = max(560, (560 + 1440) / 2 - total / 2)
+    y = max(560, (560 + 1440) / 2 - total / 2) if lg else (585 if ph else 600)
     if lg:
         _paste_logo(im, lg, x, align, y)
         y += lg.height + 40
-    for i, (ln, st, p) in enumerate(blocks):
-        if i == n_comp and gap:
-            y += gap
-        y += p
+    for ln, st, p, g in blocks:
+        y += g + p
         draw_line(d, ln, fit(ln, st, maxw), x, y - p * 0.22, align)
     return im
 

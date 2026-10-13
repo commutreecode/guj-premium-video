@@ -61,6 +61,7 @@ def _work_keys(work) -> list[str]:
             texts.append(re.split(r"\s+at\s+", b, maxsplit=1, flags=re.I)[-1])
     else:
         texts.append(w.get("company") or "")
+        texts += [str((b or {}).get("name") or "") for b in (w.get("businesses") or [])]
     keys = []
     for t in texts:
         for k in (_norm(t), _norm(str(t).split(",")[0])):
@@ -95,6 +96,16 @@ def scene_text(scene_id: str, p: dict, data) -> str:
         occ = data.get("occupation") or []
         occ = [occ] if isinstance(occ, str) else occ
         occ = [clean(o) for o in occ if clean(o)]
+        from .cards import parent_jobs
+        jobs = parent_jobs(data)
+        if jobs:      # app rows Type / Name / Work: a job in the candidate's own business says only its type
+            parts = []
+            for j in jobs:
+                if j["name"] and same_business([j["name"]], p.get("work")):
+                    parts.append(clean(j["type"]) or "Business")
+                else:
+                    parts += [clean(x) for x in (j["type"], j["name"], j["desc"]) if clean(x)]
+            return _join([lab, ", ".join(parts)])
         if occ and same_business(occ, p.get("work")):
             # same business as the candidate (CT, 13 Oct 2026): only the label ("પિતા. Business."); the
             # company and description are spoken once, on the candidate's occupation card
@@ -112,9 +123,12 @@ def scene_text(scene_id: str, p: dict, data) -> str:
     if scene_id == "work":
         if data.get("style") == "bullets":
             items = [clean(b) for b in data.get("bullets", []) if clean(b)]
-        else:
-            parts = [ln for x in [data.get("company"), data.get("desc")] for ln in str(x or "").splitlines()]
-            items = [", ".join(clean(x) for x in parts if clean(x))]   # a typed line break = a comma
+        else:                    # per business "name, work" (2-4 businesses: one sentence each)
+            from .cards import business_items
+            items = []
+            for b in business_items(data):
+                parts = [ln for x in [b["name"], b["desc"]] for ln in str(x or "").splitlines()]
+                items.append(", ".join(clean(x) for x in parts if clean(x)))   # a typed line break = a comma
         return _join([f"{first} નુ ઓક્યુપેશન"] + [i for i in items if i])
     if scene_id == "property":
         return _join(["આવક અને પ્રોપર્ટી"] + list(data))
