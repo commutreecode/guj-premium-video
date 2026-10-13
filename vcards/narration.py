@@ -113,7 +113,8 @@ def scene_text(scene_id: str, p: dict, data) -> str:
         if data.get("style") == "bullets":
             items = [clean(b) for b in data.get("bullets", []) if clean(b)]
         else:
-            items = [", ".join(clean(x) for x in [data.get("company"), data.get("desc")] if x and clean(x))]
+            parts = [ln for x in [data.get("company"), data.get("desc")] for ln in str(x or "").splitlines()]
+            items = [", ".join(clean(x) for x in parts if clean(x))]   # a typed line break = a comma
         return _join([f"{first} નુ ઓક્યુપેશન"] + [i for i in items if i])
     if scene_id == "property":
         return _join(["આવક અને પ્રોપર્ટી"] + list(data))

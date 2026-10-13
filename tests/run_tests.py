@@ -275,6 +275,26 @@ def main():
         px1 = list(zip(*[iter(f1.crop((0, 640, 1200, 1180)).tobytes())] * 3))
         check(f"{kind} with a photo: photo layout (no big name)", sum(1 for p in px1 if max(abs(a - b) for a, b in zip(p, nb)) < 14) < 2000)
 
+    # business card: a long company name (or typed lines) wraps and never runs into the photo (CT, 13 Oct 2026)
+    bctx = cards.Ctx("boy", ROOT / "samples", "clear")
+    long_c = {"style": "business", "company": "Shree Sample Saw Mill, Kurundwad-Kolhapur + Construction Material Supplier",
+              "desc": "Retailer of Building Material"}
+    two_c = dict(long_c, company="Shree Sample Saw Mill, Kurundwad-Kolhapur\n+ Sample Construction, Kolhapur")
+    short_c = dict(long_c, company="Sample Electronics, Deesa")
+    bl, bt, bs = (cards.work(bctx, c, "x", "photos/g3.jpg").convert("RGB") for c in (long_c, two_c, short_c))
+    dark_in = lambda im, box: any(max(p) < 60 for p in zip(*[iter(im.crop(box).tobytes())] * 3))
+    check("long business name: wrapped, nothing between the text column and the photo, photo frame unchanged",
+          not dark_in(bl, (800, 560, 838, 1440)) and not dark_in(bt, (800, 560, 838, 1440))
+          and ImageChops.difference(bl.crop((838, 560, 1190, 1300)), bs.crop((838, 560, 1190, 1300))).getbbox() is None)
+    def dark_rows(im, x0=40, x1=800, y0=560, y1=1440):     # text lines (runs of rows with dark ink) in the text column
+        n, inside = 0, False
+        for y in range(y0, y1):
+            ink = any(max(im.getpixel((x, y))) < 60 for x in range(x0, x1, 3))
+            n, inside = n + (ink and not inside), ink
+        return n
+    check("business name typed on 2 lines: kept as lines (4 rows: 2 + 2 wrapped), short name: 1 row",
+          dark_rows(bt) == 4 and dark_rows(bs) == 1, f"{dark_rows(bt)} / {dark_rows(bs)}")
+
     # a line break typed in the form's text box = a new line on the card (CT, 12 Oct 2026)
     def rows(im, y0=1122, y1=1500):            # number of text lines (runs of rows with white ink) in the band
         n, inside = 0, False

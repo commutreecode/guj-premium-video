@@ -563,6 +563,13 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
                 draw_line(d, ln, st, x, y - p * 0.22, align)
             y += gaps
         return im
+    x_left = 50 if ph else 600
+    align = "left" if ph else "center"
+    comp_st = Style(gu="akhand_xb", lat="barlow_xb", size=91.1, color=BLACK)
+    comp = hard_lines(w.get("company"))
+    # long name (would run into the photo even at the smallest size) or typed line breaks: wrapped layout
+    if len(comp) > 1 or (comp and measure(comp[0], comp_st.scaled(0.6)) > right - 20) or len(hard_lines(w.get("desc"))) > 1:
+        return _business_flow(im, d, ctx, w, comp, ph, right, x_left, align)
     y_company, y_desc = 999, 1178
     if w.get("logo") or w.get("_logo_photo"):
         lg = imgs.contain(_logo_src(ctx, w), 353, 328) if w.get("logo") else _logo_img(_logo_src(ctx, w), 353, 328)
@@ -570,8 +577,6 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
         im.paste(lg, (int(cx - lg.width / 2), int(726 - lg.height / 2)), lg)
     else:
         y_company, y_desc = 760, 900
-    x_left = 50 if ph else 600
-    align = "left" if ph else "center"
     if w.get("company"):
         st = Style(gu="akhand_xb", lat="barlow_xb", size=91.1, color=BLACK)
         draw_line(d, w["company"], fit(w["company"], st, right - 50), x_left, y_company, align)
@@ -580,6 +585,50 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
         lines, st = wrap_fit(w["desc"], st, right - 70, 3, 0.7)
         for i, ln in enumerate(lines):
             draw_line(d, ln, st, (70 if ph else 600), y_desc + i * 85.4, align)
+    return im
+
+
+def _business_flow(im, d, ctx: Ctx, w: dict, comp: list, ph, right: int, x: int, align: str) -> Image.Image:
+    """Business card when the company name is long or typed on several lines (or the description has line breaks):
+    logo, company lines (bold, wrapped, never into the photo) and description lines stacked and centred in the
+    free area 560..1440; sizes shrink together until everything fits."""
+    maxw = right - 50 if ph else 1100
+    desc = hard_lines(w.get("desc"))
+    k = 1.0
+    while True:
+        blocks, ok = [], True
+        st = Style(gu="akhand_xb", lat="barlow_xb", size=91.1 * k, color=BLACK)
+        for seg in comp:                                   # each typed line: max 2 lines (one long name: 3), evenly broken
+            ls = wrap_balanced(seg, st, maxw)
+            ok = ok and len(ls) <= (3 if len(comp) == 1 else 2)
+            blocks += [(ln, st, st.size * 1.12) for ln in ls]
+        n_comp = len(blocks)
+        kd = max(k, 0.8)                                   # the description keeps a readable size
+        st = Style(gu="akhand_xb", lat="barlow_b", size=66.7 * kd, color=ctx.accent)
+        for seg in desc:
+            ls = wrap_balanced(seg, st, maxw)
+            ok = ok and len(ls) <= 3
+            blocks += [(ln, st, 85.4 * kd) for ln in ls]
+        gap = 40 * k if n_comp and len(blocks) > n_comp else 0
+        text_h = sum(p for _, _, p in blocks) + gap
+        room = 1440 - 560 - text_h - 40
+        lg = None
+        if (w.get("logo") or w.get("_logo_photo")) and room >= 90:
+            box = (min(353, maxw), min(328, room))
+            lg = imgs.contain(_logo_src(ctx, w), *box) if w.get("logo") else _logo_img(_logo_src(ctx, w), *box)
+        total = text_h + (lg.height + 40 if lg else 0)
+        if (ok and total <= 1440 - 560) or k <= 0.55:
+            break
+        k -= 0.05
+    y = max(560, (560 + 1440) / 2 - total / 2)
+    if lg:
+        _paste_logo(im, lg, x, align, y)
+        y += lg.height + 40
+    for i, (ln, st, p) in enumerate(blocks):
+        if i == n_comp and gap:
+            y += gap
+        y += p
+        draw_line(d, ln, fit(ln, st, maxw), x, y - p * 0.22, align)
     return im
 
 
