@@ -250,6 +250,19 @@ def main():
     long_ = sib([{"who": "અ", "text": "HouseWife"}, {"who": "બ", "text": "Professor at Sample Institute of Technology, Anand"}])
     check("sibling band: same size for short and long text", all(isb(im, 1130) and isb(im, 1490) and not isb(im, 1110) for im in (short, long_)))
 
+    # dada-dadi / nana-nani / parents without photos: big dark-brown name in the middle, place in the band (CT, 13 Oct 2026)
+    nb = ImageColor.getrgb(cards.NAME_BROWN)
+    fctx = cards.Ctx("boy", ROOT / "samples", "clear")
+    for kind in ("dada_dadi", "nana_nani", "parents"):
+        f0 = cards.family_pair(fctx, kind, {"display_name": "મંજુલાબેન મનુભાઈ કેશવલાલ ગજ્જર", "village": "ચલોડા"}).convert("RGB")
+        f1 = cards.family_pair(fctx, kind, {"display_name": "મંજુલાબેન શાહ", "village": "ચલોડા", "photos": ["photos/couple.jpg"]}).convert("RGB")
+        px = list(zip(*[iter(f0.crop((0, 640, 1200, 1180)).tobytes())] * 3))
+        dark = sum(1 for p in px if max(abs(a - b) for a, b in zip(p, nb)) < 14)
+        check(f"{kind} without photos: name large in dark brown, band 1207-1357",
+              dark > 20000 and isb(f0, 1210) and isb(f0, 1354) and not isb(f0, 1200) and not isb(f0, 1362), str(dark))
+        px1 = list(zip(*[iter(f1.crop((0, 640, 1200, 1180)).tobytes())] * 3))
+        check(f"{kind} with a photo: photo layout (no big name)", sum(1 for p in px1 if max(abs(a - b) for a, b in zip(p, nb)) < 14) < 2000)
+
     # a line break typed in the form's text box = a new line on the card (CT, 12 Oct 2026)
     def rows(im, y0=1122, y1=1500):            # number of text lines (runs of rows with white ink) in the band
         n, inside = 0, False

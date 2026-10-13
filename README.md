@@ -135,7 +135,7 @@ Every section is optional; missing sections are skipped.
 | `birth_year` or `dob`, `marital_status`, `height` | info line, e.g. `2000, Single, 5'8"` |
 | `sect` | e.g. "દેરાવાસી જૈન" |
 | `photos.hero`, `photos.gallery[]` | photo specs (below) |
-| `dada_dadi`, `nana_nani` | `display_name`, `village`, `photos[1–2]` |
+| `dada_dadi`, `nana_nani` | `display_name`, `village`, `photos[1–2]`; without photos (also `parents`): the name large in dark brown (#684124, max 2 lines) in the middle, the place in white in the brown band (no empty photo area) |
 | `parents` | `display_name`, `village`, `city`, `sect`, `photos[1–2]` |
 | `mother`, `father` | `name`, `photo`, `occupation` (string or list of lines) |
 | `siblings[]` | any number of entries, one card each (the team app allows 5, the old form 2); `relation` (`bahen-banevi`, `bhai-bhabhi`, `mota-bhai-bhabhi`, `bhai`, `bahen`), `display_name`, `place`, `photos[1–2]`, `details[{who, text}]` (a line break typed in `text` = a new line in the card's brown band, same card) |

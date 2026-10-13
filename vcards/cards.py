@@ -146,6 +146,8 @@ def family_pair(ctx: Ctx, kind: str, d_: dict) -> Image.Image:
         title2(d, ctx, "દાદા-દાદી" if kind == "dada_dadi" else "નાના-નાની", 162.5, 509)
         y0, y1, wide = 565, 1178, 1162
         band_y = (1222, 1403)
+    if not photos:                     # no photo uploaded: big name + place band, no empty photo area
+        return _family_pair_no_photo(im, d, ctx, kind, d_)
     if photos:
         boxes = photo_boxes(len(photos), _aspect(photos[0]), y0, y1, wide)
         for ph, box in zip(photos, boxes):
@@ -164,6 +166,37 @@ def family_pair(ctx: Ctx, kind: str, d_: dict) -> Image.Image:
         draw_line(d, name, fit(name, st, 1140), 600, 1350)
         if d_.get("village"):
             draw_line(d, d_["village"], Style(size=66.7, color=BLACK), 600, 1467)
+    return im
+
+
+NAME_BROWN = "#684124"   # big name on the family cards without a photo (CT's reference, 13 Oct 2026)
+
+
+def _family_pair_no_photo(im, d, ctx: Ctx, kind: str, d_: dict) -> Image.Image:
+    """Dada-dadi / nana-nani / parents without photos (CT, 13 Oct 2026): titles lower, the name large in dark brown
+    (max 2 lines) in the middle, the place (+ city) in white in a brown band, sect (parents) under the band."""
+    im = canvas(ctx)
+    d = ImageDraw.Draw(im)
+    title1(d, TITLE_FAMILY, 398)
+    t2 = {"parents": "માતા-પિતા", "dada_dadi": "દાદા-દાદી", "nana_nani": "નાના-નાની"}[kind]
+    title2(d, ctx, t2, 166.7, 600)
+    name = d_.get("display_name", "")
+    if name:
+        st = Style(gu="akhand_xb", lat="poppins_sb", size=186, color=NAME_BROWN)
+        if measure(name, st) <= 1130:
+            ls, st = [name], st
+        else:
+            ls, st = wrap_fit(name, st, 1130, 2, 0.55)
+        pitch = st.size * 1.16
+        base0 = 928 - pitch * (len(ls) - 1) / 2 + st.size * 0.30       # lines centred around y 928
+        for i, ln in enumerate(ls):
+            draw_line(d, ln, fit(ln, st, 1130), 600, base0 + i * pitch)
+    band(im, 1207, 1357, BROWN)
+    place = gaam_haal(d_.get("village"), d_.get("city")) if kind == "parents" else d_.get("village", "")
+    if place:
+        draw_line(d, place, fit(place, Style(size=100, color=WHITE), 1140), 600, 1321)
+    if kind == "parents" and d_.get("sect"):
+        draw_line(d, d_["sect"], fit(d_["sect"], Style(size=70.7, color=NEAR_BLACK), 1140), 600, 1450)
     return im
 
 
