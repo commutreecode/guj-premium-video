@@ -53,7 +53,7 @@ TIMING = {
     "min_intro": 2.6,
     "gallery_photo": 2.0,   # seconds per gallery photo (hard cuts)
     "zoom_end": 1.21,       # Ken Burns 1.00 -> 1.21, linear
-    "ticker_px_s": 210,     # hobby ticker speed
+    "ticker_px_s": 150,     # hobby / award / property ticker speed (CT, 13 Oct 2026: slower, was 210)
     "subline_xfade": 0.4,
     "hold": 0.5,            # extra reading time after the narration, every card (s)
     "cover": 0.5,           # hero card shown first, so the video's first frame (thumbnail) is the candidate

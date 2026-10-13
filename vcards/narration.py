@@ -42,6 +42,40 @@ def plain_first_name(p: dict) -> str:
     return TITLES.sub("", first).strip() or first
 
 
+GENERIC_WORK = {"business", "family business", "own business", "job", "service", "professional", "farming",
+                "agriculture", "housewife", "home maker", "homemaker", "retired", "student", "self employed"}
+
+
+def _norm(s) -> str:
+    """Lower case, letters / digits only (Gujarati too), single spaces: for comparing business names."""
+    return " ".join(re.sub(r"[^\w]+", " ", str(s or "").lower()).split())
+
+
+def _work_keys(work) -> list[str]:
+    """Names of the candidate's business / company (full text and the part before the first comma)."""
+    w = work or {}
+    texts = []
+    if w.get("style", "business") == "bullets":
+        for b in w.get("bullets") or []:
+            b = str(b)
+            texts.append(re.split(r"\s+at\s+", b, maxsplit=1, flags=re.I)[-1])
+    else:
+        texts.append(w.get("company") or "")
+    keys = []
+    for t in texts:
+        for k in (_norm(t), _norm(str(t).split(",")[0])):
+            if len(k) >= 5 and k not in GENERIC_WORK and k not in keys:
+                keys.append(k)
+    return keys
+
+
+def same_business(occ_lines, work) -> bool:
+    """True when a parent's occupation names the candidate's own business / company."""
+    keys = _work_keys(work)
+    text = _norm(" ".join(str(o) for o in occ_lines or []))
+    return bool(keys) and any(k in text for k in keys)
+
+
 def scene_text(scene_id: str, p: dict, data) -> str:
     """Default narration style (team-approved, Oct 2026). Names only for family; Mata/Pita/sibling cards say
     the relation (+ occupation for parents) without names; villages, city, year, height, sect, colleges and
@@ -60,7 +94,14 @@ def scene_text(scene_id: str, p: dict, data) -> str:
         lab = "માતા" if scene_id == "mother" else "પિતા"
         occ = data.get("occupation") or []
         occ = [occ] if isinstance(occ, str) else occ
-        return _join([lab, ", ".join(clean(o) for o in occ if clean(o))])
+        occ = [clean(o) for o in occ if clean(o)]
+        if occ and same_business(occ, p.get("work")):
+            # same business as the candidate (CT, 13 Oct 2026): only the label ("પિતા. Business."); the
+            # company and description are spoken once, on the candidate's occupation card
+            keys = _work_keys(p.get("work"))
+            first = occ[0] if not any(k in _norm(occ[0]) for k in keys) else "Business"
+            return _join([lab, first])
+        return _join([lab, ", ".join(occ)])
     if scene_id.startswith("sibling"):
         from .cards import SIBLING_TITLES
         rel = SIBLING_TITLES.get(data.get("relation", ""), data.get("relation", ""))

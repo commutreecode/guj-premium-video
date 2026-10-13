@@ -92,6 +92,8 @@ as "Check voice: …").
 - If a voice has fewer parts than the narration (a block was not spoken), the render stops with `VOICE CHECK: …`
   instead of putting every later sentence on the wrong card.
 - In the education / occupation lines the first name is said without a title (`CA હિનલ` → `હિનલ`).
+- A parent in the candidate's own business (the occupation names the candidate's company) says only the label:
+  `પિતા. Business.` — the company and description are spoken once, on the occupation card (CT, Oct 2026).
 - Villages, city, birth year, marital status, height, sect, colleges and the sibling's occupation are shown on
   the cards but not spoken. Templates: `vcards/narration.py`.
 - **If the wording must change, change the Narration text first (Sheet / `narration.txt`), then make the voice

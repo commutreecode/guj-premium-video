@@ -105,6 +105,18 @@ def main():
     check("narration: [long pause] after every block except the last",
           all(b.rstrip().endswith("[long pause]") for b in tts[:-1]) and not tts[-1].rstrip().endswith("]"))
 
+    # father / mother in the candidate's own business: only the label is spoken (CT, 13 Oct 2026)
+    from vcards.narration import scene_text
+    biz = {"name": "x", "work": {"style": "business", "company": "Sample Electronics, Deesa", "desc": "Wholesaler"}}
+    same = scene_text("father", biz, {"occupation": ["Business:", "Sample Electronics, Deesa", "(Wholesaler of Electronics & Electrical)"]})
+    other = scene_text("father", biz, {"occupation": ["Business:", "Other Traders, Deesa"]})
+    check("narration: father in the same business -> 'પિતા. Business.'", same == "પિતા. Business.", same)
+    check("narration: father in another business -> full text", other == "પિતા. Business, Other Traders, Deesa.", other)
+    check("narration: one-line same business, generic company names ignored",
+          scene_text("father", biz, {"occupation": ["SAMPLE ELECTRONICS"]}) == "પિતા. Business."
+          and scene_text("father", {"name": "x", "work": {"company": "Business"}}, {"occupation": ["Business"]}) == "પિતા. Business."
+          and scene_text("mother", biz, {"occupation": ["HouseWife"]}) == "માતા. HouseWife.")
+
     from vcards import align, scenes
     fx = json.loads((ROOT / "tests" / "fixture_v4_pauses.json").read_text())
     blocks = ["x."] * fx["cards"]
