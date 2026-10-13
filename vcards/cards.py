@@ -214,7 +214,7 @@ def parent_jobs(d_: dict) -> list:
 def _jobs_band(jobs: list, bottom: int = 1471, top: int = 1161):
     """Brown band for a parent's jobs, never taller than the approved band (1161..1471): per job the type (small),
     the name (larger) and the work (medium); everything shrinks together to fit. Returns (band top, draw function)."""
-    SZ = {"type": 58.0, "name": 78.0, "desc": 64.0}
+    SZ = {"type": 52.0, "name": 80.0, "desc": 56.0}
     n_lines = sum(1 for j in jobs for r in ("type", "name", "desc") if j[r])
     pad = 34 if n_lines <= 3 else 20
     room = bottom - top - 2 * pad
