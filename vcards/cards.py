@@ -316,12 +316,15 @@ def sibling(ctx: Ctx, s: dict) -> Image.Image:
         return sibling_no_photo(ctx, s)
     im = canvas(ctx)
     d = ImageDraw.Draw(im)
-    title1(d, SIBLING_TITLES.get(s.get("relation", ""), s.get("title", s.get("relation", ""))))
+    details = s.get("details", [])
+    empty = not [t for t in (_detail_segments(x) for x in details) if t]
+    dy = 40 if empty else 0          # no details (CT, 14 Oct 2026): no brown band, titles a little lower, bigger photo
+    title1(d, SIBLING_TITLES.get(s.get("relation", ""), s.get("title", s.get("relation", ""))), 319 + dy)
     name = s.get("display_name", "")
     if s.get("place"):
         name = f"{name} ({s['place']})"
     st = Style(gu="akhand_xb", lat="poppins_sb", size=87.5, color=ctx.accent)
-    draw_line(d, name, fit(name, st, 1130), 600, 441)
+    draw_line(d, name, fit(name, st, 1130), 600, 441 + dy)
     photos = [ctx.photo(x) for x in s.get("photos", []) if x][:2]
     if len(photos) == 2:
         boxes = [(94, 494, 577, 1108), (628, 494, 1111, 1108)]
@@ -329,7 +332,20 @@ def sibling(ctx: Ctx, s: dict) -> Image.Image:
         boxes = [(220, 494, 980, 1108)]
     else:
         boxes = [(357, 490, 844, 1109)]
-    top, draw_band = _sibling_band(s.get("details", []))
+    if empty:
+        # the photo frame(s) scaled up together (same shape) into the free area under the name, centred
+        x0, y0 = min(b[0] for b in boxes), min(b[1] for b in boxes)
+        x1, y1 = max(b[2] for b in boxes), max(b[3] for b in boxes)
+        top, bottom = 494 + dy + 10, H - 56
+        k = min((bottom - top) / (y1 - y0), 1110 / (x1 - x0))
+        ox = 600 - (x1 - x0) * k / 2
+        # width-limited (2 photos side by side): a little taller (max 1.45 x the width), centred in the free area
+        h = min(bottom - top, max((y1 - y0) * k, (boxes[0][2] - boxes[0][0]) * k * 1.45))
+        oy = top + (bottom - top - h) / 2
+        for ph, b in zip(photos, boxes):
+            imgs.paste_photo(im, ph, (ox + (b[0] - x0) * k, oy, ox + (b[2] - x0) * k, oy + h), 88)
+        return im
+    top, draw_band = _sibling_band(details)
     for ph, box in zip(photos, boxes):          # a shorter band (short text): the photo grows, same margin above it
         imgs.paste_photo(im, ph, (box[0], box[1], box[2], box[3] + top - 1122), 88)
     draw_band(im, d)
@@ -464,13 +480,16 @@ def education(ctx: Ctx, entries: list, first: str, fallback_photo=None) -> Image
         k = 1.0
         while True:
             ops, bl = [], (650 if many else 698)
+            # one size for every degree (CT, 14 Oct 2026): the smallest size any degree needs to fit in 2 lines
+            deg0 = Style(gu="akhand_xb", lat="barlow_xb", size=104.2 * k, color=BLACK)
+            sizes = [wrap_fit(e.get("degree", ""), deg0, maxw, 2, 0.7)[1].size for e in entries if e.get("degree")]
+            deg = deg0.scaled(min(sizes) / deg0.size) if sizes else deg0
             for e in entries:
-                deg = Style(gu="akhand_xb", lat="barlow_xb", size=104.2 * k, color=BLACK)
-                dl, deg = wrap_fit(e.get("degree", ""), deg, maxw, 2, 0.7)
+                dl = wrap_balanced(e.get("degree", ""), deg, maxw)
                 ops.append(("bullet", bl))
                 for i, ln in enumerate(dl):
-                    ops.append(("text", ln, deg, bl))
-                    bl += 105 * k if i < len(dl) - 1 else 0
+                    ops.append(("text", ln, fit(ln, deg, maxw, 0.9), bl))
+                    bl += deg.size * 1.01 if i < len(dl) - 1 else 0
                 inst = Style(gu="akhand_xb", lat="barlow_m", size=66.7 * k, color=INSTITUTE)
                 it = (e.get("institute") or "").strip()
                 if it and not (it.startswith("(") and it.endswith(")")):

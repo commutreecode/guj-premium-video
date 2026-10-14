@@ -253,6 +253,29 @@ def main():
     e1 = cards.education(ctx, [{"degree": "B.Com", "institute": "Sample College, Anand"}], "x", None).convert("RGB")
     brown = sum(1 for r, g, b in e1.crop((0, 600, 1200, 1100)).getdata() if abs(r - 0x65) < 12 and abs(g - 0x2B) < 12 and b < 20)
     check("education: institute line in brown #652B02", brown > 300, str(brown))
+    # several degrees: one size for all (CT, 14 Oct 2026: "B.Tech in Mechanical Engineering" was smaller than the next)
+    def ink_heights(im, x0=60, x1=800):                       # heights of the dark text rows in the text column
+        rows, inside, start = [], False, 0
+        for y in range(560, 1440):
+            ink = any(max(im.getpixel((x, y))) < 60 for x in range(x0, x1, 2))
+            if ink and not inside:
+                start = y
+            if not ink and inside:
+                rows.append(y - start)
+            inside = ink
+        return rows
+    e2 = cards.education(ctx, [{"degree": "B.Tech in Mechanical Engineering", "institute": "GEC, Modasa"},
+                               {"degree": "Masters in Social Work", "institute": "Sample University"}], "x", "samples/photos/g2.jpg").convert("RGB")
+    hh = ink_heights(e2)
+    check("education: every degree in the same size (first lines: capitals, no descenders)",
+          len(hh) >= 3 and abs(hh[0] - hh[2]) <= 4, str(hh))
+    # sibling without details: no brown band, the photo uses the free space
+    nb = cards.sibling(cards.Ctx("boy", ROOT / "samples", "clear"),
+                       {"relation": "bahen-banevi", "display_name": "x", "photos": ["photos/couple.jpg"], "details": []}).convert("RGB")
+    br = ImageColor.getrgb(BROWN)
+    check("sibling without details: no brown band, photo reaches the lower part",
+          not any(max(abs(a - b) for a, b in zip(nb.getpixel((10, y)), br)) < 6 for y in (1200, 1300, 1450))
+          and max(nb.getpixel((600, 1400))) < 240)
 
     # sibling card: "who: text" continues after the name; the brown band keeps its size
     sib = lambda det: cards.sibling(cards.Ctx("boy", ROOT / "samples", "clear"),
