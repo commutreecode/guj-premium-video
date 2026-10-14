@@ -126,9 +126,15 @@ def scene_text(scene_id: str, p: dict, data) -> str:
         else:                    # per business "name, work" (2-4 businesses: one sentence each)
             from .cards import business_items
             items = []
-            for b in business_items(data):
+            from .cards import is_family_business
+            bizs = business_items(data)
+            for b in bizs:
                 parts = [ln for x in [b["name"], b["desc"]] for ln in str(x or "").splitlines()]
-                items.append(", ".join(clean(x) for x in parts if clean(x)))   # a typed line break = a comma
+                txt = ", ".join(clean(x) for x in parts if clean(x))          # a typed line break = a comma
+                # 2+ businesses: a Family Business row is said as on the slide, "Family Business <name>, <work>"
+                if len(bizs) > 1 and is_family_business(b.get("type")) and txt:
+                    txt = "Family Business " + txt
+                items.append(txt)
         return _join([f"{first} નુ ઓક્યુપેશન"] + [i for i in items if i])
     if scene_id == "property":
         return _join(["આવક અને પ્રોપર્ટી"] + list(data))

@@ -205,7 +205,6 @@ def parent_jobs(d_: dict) -> list:
     out = []
     for j in (d_.get("jobs") or [])[:4]:
         j = {k: " ".join(str((j or {}).get(k) or "").split()) for k in ("type", "name", "desc")}
-        j["desc"] = re.sub(r"^\((.*)\)$", r"\1", j["desc"]).strip()
         if j["type"] or j["name"] or j["desc"]:
             out.append(j)
     return out
@@ -215,7 +214,7 @@ def _jobs_band(jobs: list, bottom: int = 1471, top: int = 1161):
     """Brown band for a parent's jobs, never taller than the approved band (1161..1471). Per job (CT, 14 Oct 2026):
     the type BIGGEST, the name / company smaller, the work smallest. A name that would have to shrink a lot to fit one
     line goes on 2 lines instead; everything then shrinks together until it fits. Returns (band top, draw function)."""
-    SZ = {"type": 80.0, "name": 66.0, "desc": 54.0}
+    SZ = {"type": 80.0, "name": 66.0, "desc": 60.0}
     n_lines = sum(1 for j in jobs for r in ("type", "name", "desc") if j[r])
     pad = 30 if n_lines <= 3 else 18
     room = bottom - top - 2 * pad

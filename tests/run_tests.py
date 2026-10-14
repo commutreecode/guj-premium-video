@@ -331,6 +331,9 @@ def main():
     from vcards.narration import scene_text
     pb = {"name": "x", "first_name": "x", "work": bb}
     nb = scene_text("work", pb, bb)
+    nfam = scene_text("work", pb, dict(bb, businesses=[dict(bb["businesses"][0], type="Family Business"), dict(bb["businesses"][1], type="Own Business")]))
+    check("narration: 2+ businesses, a Family Business row is said 'Family Business <name>'",
+          nfam == "x નુ ઓક્યુપેશન. Family Business Shree Sample Saw Mill, Kurundwad-Kolhapur, Retailer of Building Material. Sample Construction Contractor.", nfam)
     check("narration: one sentence per business",
           nb == "x નુ ઓક્યુપેશન. Shree Sample Saw Mill, Kurundwad-Kolhapur, Retailer of Building Material. Sample Construction Contractor.", nb)
     nf = scene_text("father", pb, {"jobs": [{"type": "Business", "name": "Shree Sample Saw Mill, Kurundwad-Kolhapur", "desc": "x"},
