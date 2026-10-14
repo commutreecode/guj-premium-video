@@ -314,8 +314,20 @@ def main():
                          {"name": "Sample Construction Contractor", "desc": ""}]}
     b4 = cards.work(bctx, bb, "x", "photos/g3.jpg").convert("RGB")
     top_ink = next((y for y in range(560, 1440) if any(max(b4.getpixel((x, y))) < 60 for x in range(40, 800, 3))), 9999)
-    check("2 businesses: stacked (3-4 name rows), text starts at the photo top, not into the photo",
-          dark_rows(b4) in (3, 4) and top_ink < 640 and not dark_in(b4, (800, 560, 838, 1440)), f"{dark_rows(b4)} rows, top {top_ink}")
+    check("2 businesses: stacked, text starts a little below the photo top (582), not into the photo",
+          dark_rows(b4) in (3, 4) and 600 < top_ink < 700 and not dark_in(b4, (800, 560, 838, 1440)), f"{dark_rows(b4)} rows, top {top_ink}")
+    acc = ImageColor.getrgb(bctx.accent)
+    def bullets(im):                                        # theme-colour squares at the left edge of the text column
+        n, inside = 0, False
+        for y in range(560, 1440):
+            hit = any(max(abs(a - b) for a, b in zip(im.getpixel((x, y)), acc)) < 30 for x in range(51, 66, 2))
+            n, inside = n + (hit and not inside), hit
+        return n
+    fam = dict(bb, businesses=[dict(bb["businesses"][0], type="Family Business"), dict(bb["businesses"][1], type="Own Business")])
+    bf = cards.work(bctx, fam, "x", "photos/g3.jpg").convert("RGB")
+    check("2 businesses: one bullet each (Family Business on its own bulleted line)", bullets(b4) == 2 and bullets(bf) == 2,
+          f"{bullets(b4)} / {bullets(bf)}")
+    check("one business: no bullet (approved layout)", bullets(cards.work(bctx, short_c, "x", "photos/g3.jpg").convert("RGB")) == 0)
     from vcards.narration import scene_text
     pb = {"name": "x", "first_name": "x", "work": bb}
     nb = scene_text("work", pb, bb)
