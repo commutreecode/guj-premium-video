@@ -142,6 +142,15 @@ def draw_line(draw, text: str, st: Style, x: float, baseline: float, align: str 
     return w
 
 
+def ink(text: str, st: Style) -> tuple[float, float]:
+    """Top and bottom of the drawn letters relative to the baseline (matras above, ુ / ૂ below included)."""
+    top, bot = 0.0, 0.0
+    for k, s, lg, c in runs(text, st):
+        b = font(k, s).getbbox(c, anchor="ls", language=lg)
+        top, bot = min(top, b[1]), max(bot, b[3])
+    return top, bot
+
+
 def fit(text: str, st: Style, max_w: float, min_scale: float = 0.6) -> Style:
     """Shrink style until text fits max_w (never below min_scale)."""
     w = measure(text, st)

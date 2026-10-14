@@ -273,9 +273,25 @@ def main():
     nb = cards.sibling(cards.Ctx("boy", ROOT / "samples", "clear"),
                        {"relation": "bahen-banevi", "display_name": "x", "photos": ["photos/couple.jpg"], "details": []}).convert("RGB")
     br = ImageColor.getrgb(BROWN)
-    check("sibling without details: no brown band, photo reaches the lower part",
+    def photo_bottom(im, x=600):                     # last row of the photo (not the light card background)
+        return max(y for y in range(900, 1500) if max(abs(c - d) for c, d in zip(im.getpixel((x, y)), im.getpixel((8, y)))) > 30)
+    check("sibling without details: no brown band, photo down to half of where the band would be (CT, 14 Oct 2026)",
           not any(max(abs(a - b) for a, b in zip(nb.getpixel((10, y)), br)) < 6 for y in (1200, 1300, 1450))
-          and max(nb.getpixel((600, 1400))) < 240)
+          and 1290 <= photo_bottom(nb) <= 1312, str(photo_bottom(nb)))
+    # text at the bottom of a card never touches the edge (CT, 14 Oct 2026: ગુર્જર / ગજ્જર સુથાર under the parents band)
+    def ink_bottom(im, y0=1380):
+        bg = lambda y: im.getpixel((8, y))
+        return max([y for y in range(y0, 1500) if sum(1 for x in range(150, 1050, 3)
+                    if max(abs(c - d) for c, d in zip(im.getpixel((x, y)), bg(y))) > 60) > 2] or [0])
+    sc = cards.Ctx("boy", ROOT / "samples", "clear")
+    sect = "ગુર્જર / ગજ્જર સુથાર"
+    par = cards.family_pair(sc, "parents", {"display_name": "x", "village": "ગામ", "city": "શહેર", "sect": sect,
+                                             "photos": ["photos/mother.jpg", "photos/father.jpg"]}).convert("RGB")
+    nn = cards.family_pair(sc, "nana_nani", {"display_name": "x", "village": "ભુજ", "photos": ["photos/couple.jpg"]}).convert("RGB")
+    np_ = cards.family_pair(sc, "parents", {"display_name": "x", "village": "ગામ", "sect": sect, "photos": []}).convert("RGB")
+    bott = [ink_bottom(par, 1405), ink_bottom(nn), ink_bottom(np_)]
+    check("bottom text: at least 14 px above the edge (parents sect between band and edge), 24 px elsewhere",
+          bott[0] <= 1486 and bott[1] <= 1476 and bott[2] <= 1476, str(bott))
 
     # sibling card: "who: text" continues after the name; the brown band keeps its size
     sib = lambda det: cards.sibling(cards.Ctx("boy", ROOT / "samples", "clear"),

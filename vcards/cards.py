@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 
 from . import imgs
 from .config import BLACK, BROWN, DARK, H, NEAR_BLACK, THEMES, W, WHITE
-from .text import Style, draw_line, fit, measure, wrap_balanced, wrap_fit
+from .text import Style, draw_line, fit, ink, measure, wrap_balanced, wrap_fit
 
 HEADER_TEXT = "કોમ્યુટ્રી CT પ્રિમિયમ મેમ્બર"
 INTRO_LINES = ["કોમ્યુટ્રી CT", "પ્રિમિયમ મેમ્બર"]
@@ -122,8 +122,26 @@ def hero(ctx: Ctx, p: dict) -> Image.Image:
         draw_line(d, info, fit(info, st3, 1130), 600, 1360)
     if p.get("sect"):
         st4 = Style(gu="akhand_xb", lat="anek_b", size=83.2, color=BROWN)
-        draw_line(d, p["sect"], fit(p["sect"], st4, 1130), 600, 1473)
+        draw_bottom_line(d, p["sect"], fit(p["sect"], st4, 1130), 1473)
     return im
+
+
+BOTTOM_GAP = 24   # a text line at the bottom of a card ends at least this far above the edge (CT, 14 Oct 2026)
+
+
+def draw_bottom_line(d, text: str, st: Style, baseline: float, limit: float = H - BOTTOM_GAP):
+    """A line near the bottom edge: at its approved baseline, lifted only as far as its lowest letter (e.g. the ુ of
+    ગુર્જર) needs to stay `limit` px from the edge."""
+    draw_line(d, text, st, 600, min(baseline, limit - ink(text, st)[1]))
+
+
+def draw_line_between(d, text: str, st: Style, y0: float, y1: float, margin: float = 14):
+    """A line centred (by its letters) between y0 and y1, smaller if it does not fit with `margin` above and below."""
+    t, b = ink(text, st)
+    if b - t > y1 - y0 - 2 * margin:
+        st = st.scaled((y1 - y0 - 2 * margin) / (b - t))
+        t, b = ink(text, st)
+    draw_line(d, text, st, 600, (y0 + y1) / 2 - (t + b) / 2)
 
 
 def info_line(p: dict) -> str:
@@ -160,12 +178,12 @@ def family_pair(ctx: Ctx, kind: str, d_: dict) -> Image.Image:
         gh = gaam_haal(d_.get("village"), d_.get("city"))
         if gh:
             draw_line(d, gh, fit(gh, Style(size=66.7, color=WHITE), 1140), 600, 1368)
-        if d_.get("sect"):
-            draw_line(d, d_["sect"], Style(size=70.7, color=NEAR_BLACK), 600, 1481)
+        if d_.get("sect"):                       # between the band and the bottom edge, never touching it
+            draw_line_between(d, d_["sect"], fit(d_["sect"], Style(size=70.7, color=NEAR_BLACK), 1140), band_y[1], H)
     else:
         draw_line(d, name, fit(name, st, 1140), 600, 1350)
         if d_.get("village"):
-            draw_line(d, d_["village"], Style(size=66.7, color=BLACK), 600, 1467)
+            draw_bottom_line(d, d_["village"], fit(d_["village"], Style(size=66.7, color=BLACK), 1140), 1467)
     return im
 
 
@@ -196,7 +214,7 @@ def _family_pair_no_photo(im, d, ctx: Ctx, kind: str, d_: dict) -> Image.Image:
     if place:
         draw_line(d, place, fit(place, Style(size=100, color=WHITE), 1140), 600, 1321)
     if kind == "parents" and d_.get("sect"):
-        draw_line(d, d_["sect"], fit(d_["sect"], Style(size=70.7, color=NEAR_BLACK), 1140), 600, 1450)
+        draw_bottom_line(d, d_["sect"], fit(d_["sect"], Style(size=70.7, color=NEAR_BLACK), 1140), 1450)
     return im
 
 
@@ -336,7 +354,7 @@ def sibling(ctx: Ctx, s: dict) -> Image.Image:
         # the photo frame(s) scaled up together (same shape) into the free area under the name, centred
         x0, y0 = min(b[0] for b in boxes), min(b[1] for b in boxes)
         x1, y1 = max(b[2] for b in boxes), max(b[3] for b in boxes)
-        top, bottom = 494 + dy + 10, H - 56
+        top, bottom = 494 + dy + 10, (1122 + H) // 2     # down to half of the (missing) band, the rest stays free (CT)
         k = min((bottom - top) / (y1 - y0), 1110 / (x1 - x0))
         ox = 600 - (x1 - x0) * k / 2
         # width-limited (2 photos side by side): a little taller (max 1.45 x the width), centred in the free area
