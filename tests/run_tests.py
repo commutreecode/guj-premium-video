@@ -148,7 +148,7 @@ def main():
         ok += all(abs(a - s) < 0.06 for (a, _), s in zip(sp, truth))
     check("simulated v4 voices (sample profile): all cards correct", ok == 60, f"{ok}/60")
 
-    # job card: company logo ABOVE the company name, transparent; the person's photo stays on the right
+    # job card: company logo BELOW the company name, transparent; the person's photo stays on the right
     from vcards import cards
     from vcards.config import BROWN
     from PIL import ImageColor, ImageChops
@@ -163,8 +163,10 @@ def main():
     green = lambda box: any(g > 150 and r < 80 and b < 80 for r, g, b in pix(box))
     ys = [y for y in range(560, 1440, 4) if green((40, y, 800, y + 4))]
     acc = ImageColor.getrgb(ctx.accent)
-    comp_y = min(y for y in range(560, 1440, 4) if any(max(abs(a - b) for a, b in zip(c, acc)) < 30 for c in pix((40, y, 800, y + 4))))
-    check("job card: logo above the company name", ys and max(ys) < comp_y, f"logo {ys[:1]}..{ys[-1:]} company {comp_y}")
+    comp_ys = [y for y in range(560, 1440, 4) if any(max(abs(a - b) for a, b in zip(c, acc)) < 30 for c in pix((40, y, 800, y + 4)))]
+    check("job card: designation, company name, then the logo below it (CT, 14 Oct 2026)",
+          ys and comp_ys and min(ys) > max(comp_ys), f"logo {ys[:1]}..{ys[-1:]} company {comp_ys[:1]}..{comp_ys[-1:]}")
+    check("job card: logo larger than before (wide logo up to 600 px wide)", ys and 96 <= max(ys) - min(ys) + 4, f"{max(ys) - min(ys) + 4} px tall")
     check("job card: logo not in the photo frame", not green((830, 560, 1190, 1300)))
     check("job card: white logo background made transparent", sum(1 for c in pix((40, 560, 800, 1440)) if min(c) >= 250) < 200)
     job4 = dict(job, bullets=["A at B, C", "D", "E", "F"])

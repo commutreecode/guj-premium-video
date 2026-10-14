@@ -660,13 +660,14 @@ def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
             ls, st = wrap_fit(e, Style(gu="akhand_xb", lat="barlow_m", size=58, color=BLACK), maxw, 2, 0.7)
             texts.append((ls, st, 74))
         gaps = 40
-        height = sum(p * len(ls) for ls, _, p in blocks + texts) + gaps * (len(blocks + texts) - 1)
-        # company logo ABOVE the company name (never in the photo frame), sized to the room left on the card
-        room = 1440 - 560 - height - gaps
-        lg = _job_logo(ctx, w, min(maxw, 520), min(170, room), min(300, room))
+        blocks += texts
+        height = sum(p * len(ls) for ls, _, p in blocks) + gaps * (len(blocks) - 1)
+        # order (CT, 14 Oct 2026): designation, company name, then the company logo BELOW it, larger than before
+        # (up to 260 px tall; never in the photo frame), sized to the room left on the card
+        room = 1440 - 560 - height - gaps - 8
+        lg = _job_logo(ctx, w, min(maxw, 600), min(260, room), min(320, room))
         if lg:
             blocks.append(("logo", lg, lg.height))
-        blocks += texts
         total = sum(p if ls == "logo" else p * len(ls) for ls, _, p in blocks) + gaps * (len(blocks) - 1)
         y = max(560, 933 - total / 2)  # vertical centre of the photo (582..1284)
         for ls, st, p in blocks:
