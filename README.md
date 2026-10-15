@@ -89,6 +89,14 @@ as "Check voice: …").
 - **The voice stops after the occupation card** (team rule, Oct 2026): Past Experience, Income / Property and the photo
   gallery are shown with background music only (cards 4.5 s) and are not part of the narration
   (`VOICE_LAST_SECTION`, `TIMING["silent_card"]` in `vcards/config.py`).
+- **Team PSDs** (CT, 15 Oct 2026, 79 hand-made profiles are the reference): occupation card "X નુ ઓક્યુપેશન:" +
+  "જોબ / વ્યવસાય"; names Barlow Condensed Bold Italic dark brown, work in brackets golden brown; job = DESIGNATION /
+  "at Company" / extra lines / logo below, photo right; one business = TYPE label / name / (work) / logo below, photo
+  right, voice says the label; 2-4 businesses = heading ("BUSINESS" or `work.heading`), a bullet per business, a logo per
+  row on the right (`businesses[i].logo`), NO photo. Education card "X નુ એજ્યુકેશન:"; degree typed on 2 lines (a line
+  in brackets small). `edu_work_one: true` = education + occupation on one card (`edu_work`, one voice block, only when
+  short); `property_card: true` = Income / Property on its own card even with one line; `mother/father.education` =
+  "(M.Com + LLB)" above the type in the band; same village and city -> "(બોટાદ)".
 - **Business heading** (CT, 15 Oct 2026): `work.heading` (the team's own occupation type, e.g. "Businesses in Kolhapur")
   with 2+ businesses is drawn once above the list (no bullet) and said first in the occupation sentence; ignored for one business.
 - **2 or more siblings without a photo** (CT, 15 Oct 2026): they are left out of the narration and shown together on

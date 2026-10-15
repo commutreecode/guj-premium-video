@@ -22,6 +22,7 @@ FONTS = {
     "barlow_xb": _F / "barlow/Barlow-ExtraBold.ttf",
     "barlowc_sb": _F / "barlow/BarlowCondensed-SemiBold.ttf",
     "barlowc_b": _F / "barlow/BarlowCondensed-Bold.ttf",
+    "barlowc_bi": _F / "barlow/BarlowCondensed-BoldItalic.ttf",   # names on the occupation card (team PSDs)
     "poppins_sb": _F / "poppins/Poppins-SemiBold.ttf",
     "poppins_b": _F / "poppins/Poppins-Bold.ttf",
 }
@@ -77,6 +78,7 @@ HOLD_EXTRA = {
     "sibling": 0.5,      # applies to sibling1, sibling2, ...
     "education": 0.5,
     "work": 0.5,
+    "edu_work": 1.0,     # education + occupation on one card (app tick)
 }
 
 # Automatic photo framing (photos without "crop"/"focus" in the JSON): head to chest.

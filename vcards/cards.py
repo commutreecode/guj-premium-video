@@ -83,6 +83,9 @@ def _aspect(photo: imgs.Photo) -> float:
 
 
 def gaam_haal(native, city) -> str:
+    n, c = " ".join(str(native or "").split()), " ".join(str(city or "").split())
+    if n and n == c:                     # same village and city (team PSDs): "(બોટાદ)" only
+        return f"({n})"
     parts = []
     if native:
         parts.append(f"ગામઃ {native}")
@@ -228,17 +231,21 @@ def parent_jobs(d_: dict) -> list:
     return out
 
 
-def _jobs_band(jobs: list, bottom: int = 1471, top: int = 1161):
+def _jobs_band(jobs: list, bottom: int = 1471, top: int = 1161, edu: str = ""):
     """Brown band for a parent's jobs, never taller than the approved band (1161..1471). Per job (CT, 14 Oct 2026):
     the type BIGGEST, the name / company smaller, the work smallest. A name that would have to shrink a lot to fit one
     line goes on 2 lines instead; everything then shrinks together until it fits. Returns (band top, draw function)."""
     SZ = {"type": 80.0, "name": 66.0, "desc": 60.0}
-    n_lines = sum(1 for j in jobs for r in ("type", "name", "desc") if j[r])
+    n_lines = sum(1 for j in jobs for r in ("type", "name", "desc") if j[r]) + (1 if edu else 0)
     pad = 30 if n_lines <= 3 else 18
     room = bottom - top - 2 * pad
     k = 1.0
     while True:
         rows = []                                        # (text, style, pitch, gap_before)
+        if edu:                                          # parent's education first, e.g. "(M.Com + LLB)" (team PSDs)
+            st = Style(gu="akhand_xb", lat="poppins_sb", size=SZ["desc"] * k, color=WHITE)
+            for ln in ([edu] if measure(edu, st.scaled(0.86)) <= 1120 else wrap_balanced(edu, st, 1120)[:2]):
+                rows.append((ln, st, st.size * 1.16, 0))
         for i, j in enumerate(jobs):
             first = True
             for role in ("type", "name", "desc"):
@@ -250,7 +257,7 @@ def _jobs_band(jobs: list, bottom: int = 1471, top: int = 1161):
                 else:                                     # name / work too long: 2 balanced lines
                     ls = wrap_balanced(j[role], st, 1120)[:2]
                 for ln in ls:
-                    rows.append((ln, st, st.size * 1.16, 14 * k if (first and i) else 0))
+                    rows.append((ln, st, st.size * 1.16, 14 * k if (first and (i or edu)) else 0))
                     first = False
         total = sum(p + g for _, _, p, g in rows)
         if total <= room or k <= 0.5:
@@ -278,12 +285,15 @@ def single_parent(ctx: Ctx, rel: str, d_: dict, fallback_photo=None) -> Image.Im
     occ = d_.get("occupation") or []
     if isinstance(occ, str):
         occ = [occ]
+    edu = paren(d_.get("education"))                  # optional (team PSDs): "(B.Com + LLB)" above the occupation
     if jobs:
         occ = [t for j in jobs for t in (j["type"], j["name"], j["desc"]) if t]
-    if ph and jobs and len(occ) > 1:
+    elif edu:
+        occ = [edu] + list(occ)
+    if ph and jobs and (len(occ) > 1 or edu):
         # Type / Name / Work rows from the app (CT, 13 Oct 2026): type small, name larger, work medium; the band
         # grows upwards for 2+ jobs and the photo always ends 36 px above it (never touching the band)
-        top, draw_band = _jobs_band(jobs)
+        top, draw_band = _jobs_band(jobs, edu=edu)
         y1 = top - 36
         box = (220, 559, 980, y1) if _aspect(ph) >= 0.9 else (359, 559, 841, y1)
         imgs.paste_photo(im, ph, box, 88)
@@ -294,6 +304,8 @@ def single_parent(ctx: Ctx, rel: str, d_: dict, fallback_photo=None) -> Image.Im
         box = (220, 559, 980, y1) if _aspect(ph) >= 0.9 else (359, 559, 841, y1)
         imgs.paste_photo(im, ph, box, 88)
     if not ph:
+        if jobs and edu:
+            occ = [edu] + occ
         imgs.fill_rrect(im, (92, 600, 1108, 1180), 88, BROWN)
         st = Style(gu="akhand_xb", lat="poppins_sb", size=80, color=WHITE)
         lines = []
@@ -558,10 +570,21 @@ def _draw_block(d, lines, y0, y1, x=600, align="center", max_w=1130):
 INSTITUTE = "#652B02"      # college / university line on the education card
 
 
+def deg_lines(e: dict):
+    """A degree as typed (team PSDs): line 1 and plain lines big ("B A" / "Bachelor of Arts"), lines in brackets small
+    under it ("(Gold Medalist)", "(CA Final Group 2 Cleared)"). -> (big lines, small lines)"""
+    segs = hard_lines(e.get("degree", ""))
+    big = [sg for i, sg in enumerate(segs) if i == 0 or not (sg.startswith("(") and sg.endswith(")"))]
+    small = [sg for i, sg in enumerate(segs) if i > 0 and sg.startswith("(") and sg.endswith(")")]
+    return big, small
+
+
 def education(ctx: Ctx, entries: list, first: str, fallback_photo=None) -> Image.Image:
     im = canvas(ctx)
     d = ImageDraw.Draw(im)
-    title1(d, f"{first} નો પરિચય")
+    st0 = Style(gu="akhand_xb", lat="anek_sb", size=126.9, color=BROWN)   # "<name> નુ એજ્યુકેશન:" (team PSDs)
+    t0 = f"{first} નુ એજ્યુકેશન:"
+    draw_line(d, t0, fit(t0, st0, 1100), 600, 297)
     title2(d, ctx, "Education / અભ્યાસ", 129.2, 487, upper=True)
     photo = next((ctx.photo(e["photo"]) for e in entries if e.get("photo")), None) or ctx.photo(fallback_photo)
     many = len(entries) > 3                 # 4-7 degrees: tighter spacing, smaller text if needed (1-3: as approved)
@@ -572,15 +595,20 @@ def education(ctx: Ctx, entries: list, first: str, fallback_photo=None) -> Image
             ops, bl = [], (650 if many else 698)
             # one size for every degree (CT, 14 Oct 2026): the smallest size any degree needs to fit in 2 lines
             deg0 = Style(gu="akhand_xb", lat="barlow_xb", size=104.2 * k, color=BLACK)
-            sizes = [wrap_fit(e.get("degree", ""), deg0, maxw, 2, 0.7)[1].size for e in entries if e.get("degree")]
+            sizes = [wrap_fit(sg, deg0, maxw, 2, 0.7)[1].size for e in entries for sg in deg_lines(e)[0]]
             deg = deg0.scaled(min(sizes) / deg0.size) if sizes else deg0
             for e in entries:
-                dl = wrap_balanced(e.get("degree", ""), deg, maxw)
+                big, small = deg_lines(e)
+                dl = [ln for sg in big for ln in wrap_balanced(sg, deg, maxw)]
                 ops.append(("bullet", bl))
                 for i, ln in enumerate(dl):
                     ops.append(("text", ln, fit(ln, deg, maxw, 0.9), bl))
                     bl += deg.size * 1.01 if i < len(dl) - 1 else 0
                 inst = Style(gu="akhand_xb", lat="barlow_m", size=66.7 * k, color=INSTITUTE)
+                for sg in small:                    # a typed line in brackets, e.g. "(Gold Medalist)": small, brown
+                    for ln in wrap_balanced(sg, inst, maxw):
+                        bl += 85.4 * k
+                        ops.append(("text", ln, inst, bl))
                 it = (e.get("institute") or "").strip()
                 if it and not (it.startswith("(") and it.endswith(")")):
                     it = f"({it})"                  # "(BVM, Anand)" in brown (CT, 10 Oct 2026)
@@ -608,6 +636,84 @@ def education(ctx: Ctx, entries: list, first: str, fallback_photo=None) -> Image
             imgs.fill_rrect(im, (xb, op[1] - 57 * k, xb + b, op[1] - 57 * k + b), 14 * k, ctx.accent)
         else:
             draw_line(d, op[1], op[2], xt, op[3], "left")
+    return im
+
+
+def edu_work_fits(p: dict) -> bool:
+    """The app's tick "Education + occupation on one slide" and both are short enough (team PSDs: Palak, Riddhi,
+    Vishvas, Vruti ...): up to 3 degrees and one job (max 2 lines) or one business, no Past Experience."""
+    w, edu = p.get("work") or {}, [e for e in (p.get("education") or []) if e.get("degree")]
+    if not (p.get("edu_work_one") and edu and w and len(edu) <= 3 and not past_items(w)):
+        return False
+    return len(business_items(w)) == 1 if w.get("style", "business") != "bullets" else 0 < len(w.get("bullets") or []) <= 2
+
+
+def edu_work(ctx: Ctx, p: dict, first: str) -> Image.Image:
+    """Education and occupation on ONE card, full width (no photo): "<name> નુ એજ્યુકેશન:" + degree bullets (college
+    small, brown), then "<name> નુ ઓક્યુપેશન:" + one bullet (designation / business label, name, work) + logo."""
+    im = canvas(ctx)
+    d = ImageDraw.Draw(im)
+    w = p.get("work") or {}
+    if w.get("photo") and not w.get("logo"):
+        p0 = ctx.photo(w["photo"])
+        if not imgs.faces(*p0.key):
+            w = dict(w, photo=None, _logo_photo=p0)
+    edu = [e for e in (p.get("education") or []) if e.get("degree")]
+    if w.get("style", "business") == "bullets":
+        desig, comp, extra = job_parts(w.get("bullets") or [])
+        occ = [(desig, "deg"), (comp, "name")] + [(e, "work") for e in extra]
+    else:
+        b = business_items(w)[0]
+        lab = " ".join(str(b.get("type") or w.get("label") or "Business").replace("_", " ").split())
+        occ = [(lab, "deg"), (b.get("name"), "name"), (paren(b.get("desc")), "work")]
+    X_B, X_T, R = 70, 140, 1140
+    k = 1.0
+    while True:
+        rows = []                                    # (kind, text, style, pitch, gap)
+        tst = Style(gu="akhand_xb", lat="anek_sb", size=112 * k, color=BROWN)
+        dst = Style(gu="akhand_xb", lat="barlow_xb", size=92 * k, color=BLACK)
+        ist = Style(gu="akhand_xb", lat="barlow_m", size=60 * k, color=INSTITUTE)
+        nst = Style(gu="akhand_xb", lat="barlowc_bi", size=84 * k, color=OCC_NAME)
+        wst = Style(gu="akhand_xb", lat="barlowc_bi", size=64 * k, color=OCC_WORK)
+        rows.append(("title", f"{first} નુ એજ્યુકેશન:", tst, tst.size * 1.05, 0))
+        for i, e in enumerate(edu):
+            big, small = deg_lines(e)
+            g = 34 * k if i == 0 else 40 * k
+            for j, ln in enumerate(ln for sg in big for ln in wrap_balanced(sg, dst, R - X_T)):
+                rows.append(("bullet" if j == 0 else "text", ln, dst, dst.size * 1.08, g)); g = 0
+            it = paren(e.get("institute"))
+            for ln in [ln for sg in small + ([it] if it else []) for ln in wrap_balanced(sg, ist, R - X_T)]:
+                rows.append(("text", ln, ist, ist.size * 1.3, 0))
+        rows.append(("title", f"{first} નુ ઓક્યુપેશન:", tst, tst.size * 1.05, 70 * k))
+        g, first_row = 34 * k, True
+        for txt, kind in occ:
+            if not txt:
+                continue
+            st = {"deg": dst, "name": nst, "work": wst}[kind]
+            for ln in wrap_balanced(txt, st, R - X_T):
+                rows.append(("bullet" if first_row else "text", ln, st, st.size * 1.12, g)); g, first_row = 0, False
+        room = 1450 - 165
+        lg = None
+        if w.get("logo") or w.get("_logo_photo"):
+            lg = _job_logo(ctx, w, 420, int(min(170, room - sum(r[3] + r[4] for r in rows) - 30)), 200)
+        total = sum(r[3] + r[4] for r in rows) + (lg.height + 30 if lg else 0)
+        if total <= room or k <= 0.55:
+            break
+        k -= 0.04
+    y = 165 + max(0, (room - total) / 2)
+    for kind, txt, st, pch, g in rows:
+        y += g + pch
+        base = y - pch * 0.24
+        if kind == "title":
+            draw_line(d, txt, fit(txt, st, 1100), 600, base)
+            continue
+        if kind == "bullet":
+            b = st.size * 0.42
+            cy = base - st.size * 0.36
+            imgs.fill_rrect(im, (X_B, cy - b / 2, X_B + b, cy + b / 2), b * 0.25, ctx.accent)
+        draw_line(d, txt, fit(txt, st, R - X_T), X_T, base, "left")
+    if lg:
+        _paste_logo(im, lg, X_T, "left", y + 30)
     return im
 
 
@@ -646,6 +752,18 @@ def bullet_list(im, d, items, accent, shape, x_b, x_t, max_w, first_bl, size, bo
         for i, ln in enumerate(lines):
             draw_line(d, ln, st, x_t, bl + i * s * line_k, "left")
     return s
+
+
+def job_parts(items: list):
+    """Job lines as on the team PSDs -> (designation, "at company", extra lines): "Manager at ABC, Pune" is split into
+    "Manager" / "at ABC, Pune"; without " at " the 2nd line is the company."""
+    items = [i.strip() for i in items if i and i.strip()]
+    if not items:
+        return "", "", []
+    m = re.split(r"\s+at\s+", items[0], maxsplit=1, flags=re.I)
+    if len(m) == 2:
+        return m[0], f"at {m[1]}", items[1:]
+    return items[0], (items[1] if len(items) > 1 else ""), items[2:]
 
 
 def split_job(items: list):
@@ -689,94 +807,156 @@ def _paste_logo(im: Image.Image, lg: Image.Image, x: float, align: str, top: flo
     im.paste(lg, (int(left), int(top)), lg)
 
 
+# ---------------------------------------------------------------- occupation card (team PSDs, 15 Oct 2026)
+OCC_NAME = "#4A2409"       # company / business name (dark brown, Barlow Condensed Bold Italic)
+OCC_WORK = "#875632"       # work line in brackets (golden brown, like the education card's college line)
+
+
+def occ_titles(d, ctx: Ctx, first: str, y_shift: float = 0):
+    """'<first> નુ ઓક્યુપેશન:' (brown) + 'જોબ / વ્યવસાય' (theme colour), as on every team PSD."""
+    t = f"{first} નુ ઓક્યુપેશન:"
+    st = Style(gu="akhand_xb", lat="anek_sb", size=126.9, color=BROWN)
+    draw_line(d, t, fit(t, st, 1100), 600, 297 + y_shift)
+    st2 = Style(gu="akhand_xb", lat="anek_sb", size=151.4, color=ctx.accent)
+    draw_line(d, "જોબ / વ્યવસાય", st2, 600, 487 + y_shift)
+
+
+def paren(s: str) -> str:
+    s = str(s or "").strip()
+    return s if not s or (s.startswith("(") and s.endswith(")")) else f"({s})"
+
+
+def _stack(im, d, blocks, x: int, maxw: int, top: int, bottom: int, centre: float | None = None, logo=None):
+    """Left-aligned text blocks [(text, style, max_lines, gap_before)] (+ a logo below), shrunk together until they fit
+    between top and bottom; centred on `centre` (the photo's middle) when given."""
+    k = 1.0
+    while True:
+        rows, ok = [], True
+        for txt, st, n, gap in blocks:
+            for seg in hard_lines(txt):
+                s2 = st.scaled(k)
+                ls = [seg] if measure(seg, s2.scaled(0.86)) <= maxw else wrap_balanced(seg, s2, maxw)
+                ok = ok and len(ls) <= n
+                for li, ln in enumerate(ls):
+                    rows.append((ln, s2, s2.size * 1.16, gap * k if li == 0 else 0))
+                    gap = 0
+        lg = logo(bottom - top - sum(p + g for *_, p, g in rows) - 40) if logo else None
+        total = sum(p + g for *_, p, g in rows) + (lg.height + 40 if lg else 0)
+        if (ok and total <= bottom - top) or k <= 0.55:
+            break
+        k -= 0.05
+    y = max(top, (centre - total / 2) if centre else top)
+    for ln, st, p, g in rows:
+        y += g + p
+        draw_line(d, ln, fit(ln, st, maxw), x, y - p * 0.24, "left")
+    if lg:
+        _paste_logo(im, lg, x, "left", y + 40)
+    return im
+
+
 def work(ctx: Ctx, w: dict, first: str, fallback_photo=None) -> Image.Image:
     im = canvas(ctx)
     d = ImageDraw.Draw(im)
-    title1(d, f"{first} નો પરિચય")
-    title2(d, ctx, "જોબ / વ્યવસાય", 166.7, 509)
+    occ_titles(d, ctx, first)
     if w.get("photo") and not w.get("logo"):
         p0 = ctx.photo(w["photo"])
         # the app's box is "LOGO / COMPANY CARD": without a face it is a logo or a visiting card, drawn in the text
         # column (never cut by the photo frame); a candidate photo goes on the right. With a face: the person, as before.
         if not imgs.faces(*p0.key):
             w = dict(w, photo=None, _logo_photo=p0)
+    bizs = business_items(w)
+    if w.get("style", "business") != "bullets" and len(bizs) > 1:
+        return _business_list(im, d, ctx, w, bizs)       # 2-4 businesses: full width, no candidate photo (PSDs)
     ph = ctx.photo(w.get("photo")) or ctx.photo(fallback_photo)
     right = 790 if ph else 1150
     if ph:
         imgs.paste_photo(im, ph, (840, 582, 1174, 1284), 66, ctx.privacy)
+    x, maxw = (50, right - 50) if ph else (110, 980)
+    lab = Style(gu="akhand_xb", lat="barlowc_b", size=96, color=BLACK, upper=True)
     if w.get("style", "business") == "bullets":
         items = w.get("bullets", [])
-        x, align, maxw = (50, "left", right - 50) if ph else (600, "center", 1100)
         if len(items) > 3:  # a real list of roles: bullets (company logo, if any, above the list)
             lg = _job_logo(ctx, w, min(maxw, 560), 150)
             top = 580 + (lg.height + 40 if lg else 0)
             if lg:
-                _paste_logo(im, lg, x, align, 580)
+                _paste_logo(im, lg, x, "left", 580)
             bullet_list(im, d, items, ctx.accent, ctx.job_bullet, 50,
                         100 if ctx.job_bullet == "dot" else 130, right, top + 100, 72, 1440, center_top=top)
             return im
-        desig, comp, extra = split_job(items)
-        blocks = []  # (lines, style, pitch) or ("logo", None, height)
-        if desig:
-            st0 = Style(gu="akhand_xb", lat="barlow_xb", size=96, color=BLACK)
-            if measure(desig, st0.scaled(0.8)) <= maxw:      # keep a designation on one line when it nearly fits
-                ls, st = [desig], fit(desig, st0, maxw, 0.8)
-            else:
-                ls, st = wrap_fit(desig, st0, maxw, 2, 0.6)
-            blocks.append((ls, st, 110))
-        texts = []
+        desig, comp, extra = job_parts(items)         # "Manager at ABC" -> designation / "at ABC" (PSD)
+        blocks = [(desig, lab, 2, 0)]
         if comp:
-            ls, st = wrap_fit(comp, Style(gu="akhand_xb", lat="barlow_b", size=66.7, color=ctx.accent), maxw, 3, 0.7)
-            texts.append((ls, st, 85))
+            blocks.append((comp, Style(gu="akhand_xb", lat="barlowc_bi", size=104, color=OCC_NAME), 3, 30))
         for e in extra:
-            ls, st = wrap_fit(e, Style(gu="akhand_xb", lat="barlow_m", size=58, color=BLACK), maxw, 2, 0.7)
-            texts.append((ls, st, 74))
-        gaps = 40
-        blocks += texts
-        height = sum(p * len(ls) for ls, _, p in blocks) + gaps * (len(blocks) - 1)
-        # order (CT, 14 Oct 2026): designation, company name, then the company logo BELOW it, larger than before
-        # (up to 260 px tall; never in the photo frame), sized to the room left on the card
-        room = 1440 - 560 - height - gaps - 8
-        lg = _job_logo(ctx, w, min(maxw, 600), min(260, room), min(320, room))
-        if lg:
-            blocks.append(("logo", lg, lg.height))
-        total = sum(p if ls == "logo" else p * len(ls) for ls, _, p in blocks) + gaps * (len(blocks) - 1)
-        y = max(560, 933 - total / 2)  # vertical centre of the photo (582..1284)
-        for ls, st, p in blocks:
-            if ls == "logo":
-                _paste_logo(im, st, x, align, y + 8)
-                y += p + gaps
-                continue
-            for ln in ls:
-                y += p
-                draw_line(d, ln, st, x, y - p * 0.22, align)
-            y += gaps
-        return im
-    x_left = 50 if ph else 600
-    align = "left" if ph else "center"
-    comp_st = Style(gu="akhand_xb", lat="barlow_xb", size=91.1, color=BLACK)
-    bizs = business_items(w)
-    comp = hard_lines(w.get("company"))
-    # 2-4 businesses, a long name (would run into the photo even at the smallest size) or typed line breaks:
-    # stacked / wrapped layout
-    if len(bizs) > 1 or len(comp) > 1 or (comp and measure(comp[0], comp_st.scaled(0.6)) > right - 20) \
-            or len(hard_lines(w.get("desc"))) > 1:
-        return _business_flow(im, d, ctx, w, bizs, ph, right, x_left, align)
-    y_company, y_desc = 999, 1178
-    if w.get("logo") or w.get("_logo_photo"):
-        lg = imgs.contain(_logo_src(ctx, w), 353, 328) if w.get("logo") else _logo_img(_logo_src(ctx, w), 353, 328)
-        cx = 377 if ph else 600
-        im.paste(lg, (int(cx - lg.width / 2), int(726 - lg.height / 2)), lg)
-    else:
-        y_company, y_desc = 760, 900
-    if w.get("company"):
-        st = Style(gu="akhand_xb", lat="barlow_xb", size=91.1, color=BLACK)
-        draw_line(d, w["company"], fit(w["company"], st, right - 50), x_left, y_company, align)
-    if w.get("desc"):
-        st = Style(gu="akhand_xb", lat="barlow_b", size=66.7, color=ctx.accent)
-        lines, st = wrap_fit(w["desc"], st, right - 70, 3, 0.7)
-        for i, ln in enumerate(lines):
-            draw_line(d, ln, st, (70 if ph else 600), y_desc + i * 85.4, align)
+            blocks.append((e, Style(gu="akhand_xb", lat="barlowc_bi", size=80, color=OCC_WORK), 2, 20))
+    else:                                           # one business: label, name, (work), logo below (Viral / Raj PSDs)
+        b = bizs[0] if bizs else {"type": w.get("label", ""), "name": w.get("company", ""), "desc": w.get("desc", "")}
+        label = " ".join(str(b.get("type") or w.get("label") or "Business").replace("_", " ").split())
+        blocks = [(label, lab, 1, 0)]
+        if b.get("name"):
+            blocks.append((b["name"], Style(gu="akhand_xb", lat="barlowc_bi", size=112, color=OCC_NAME), 3, 34))
+        if b.get("desc"):
+            blocks.append((paren(b["desc"]), Style(gu="akhand_xb", lat="barlowc_bi", size=80, color=OCC_WORK), 3, 26))
+    logo = (lambda room: _job_logo(ctx, w, min(maxw, 600), min(260, room), min(320, room))) \
+        if (w.get("logo") or w.get("_logo_photo")) else None
+    return _stack(im, d, blocks, x, maxw, 580, 1440, 933 if ph else None, logo)
+
+
+def _business_list(im, d, ctx: Ctx, w: dict, bizs: list) -> Image.Image:
+    """2-4 businesses (Siddarth / Rajan / Viraj PSDs): heading ("BUSINESS" or the team's own heading), then per business
+    a theme-colour bullet, the name (dark brown italic) and the work in brackets (golden brown italic), a business
+    logo on the right of its row when given; a Family Business row gets its own bulleted "FAMILY BUSINESS" line."""
+    head = business_heading(w) or "Business"
+    X_B, X_T, R = 56, 110, 1150
+    k = 1.0
+    while True:
+        rows = []                                   # (text, style, pitch, gap, bullet, logo_row)
+        hs = fit(head, Style(gu="akhand_xb", lat="barlowc_b", size=112 * k, color=BLACK, upper=True), R - X_T)
+        rows.append((head, hs, hs.size * 1.1, 0, False, None))
+        ok, logos = True, []
+        for bi, b in enumerate(bizs):
+            lg = None
+            if b.get("logo"):
+                lg = _logo_img(_logo_src(ctx, {"logo": b["logo"]}), int(300 * max(k, 0.7)), int(170 * max(k, 0.7)))
+            tw = R - X_T - (lg.width + 30 if lg else 0)
+            gap, bullet, start = (40 if bi == 0 else (58 if len(bizs) < 3 else 34)) * k, True, len(rows)
+            if is_family_business(b.get("type")):
+                st = Style(gu="akhand_xb", lat="barlowc_b", size=100 * k, color=BLACK, upper=True)
+                rows.append(("Family Business", st, st.size * 1.12, gap, True, None))
+                gap, bullet = 8 * k, False
+            nst = Style(gu="akhand_xb", lat="barlowc_bi", size=94.7 * k, color=OCC_NAME)
+            for seg in hard_lines(b.get("name")):
+                ls = [seg] if measure(seg, nst.scaled(0.86)) <= tw else wrap_balanced(seg, nst, tw)
+                ok = ok and len(ls) <= 2
+                for ln in ls:
+                    rows.append((ln, nst, nst.size * (1.14 if len(bizs) < 3 else 1.06), gap, bullet, None)); gap, bullet = 0, False
+            wst = Style(gu="akhand_xb", lat="barlowc_bi", size=77.5 * k, color=OCC_WORK)
+            for seg in hard_lines(b.get("desc")):
+                seg = paren(seg)
+                ls = [seg] if measure(seg, wst.scaled(0.86)) <= tw else wrap_balanced(seg, wst, tw)
+                ok = ok and len(ls) <= 2
+                for ln in ls:
+                    rows.append((ln, wst, wst.size * (1.18 if len(bizs) < 3 else 1.1), gap, bullet, None)); gap, bullet = 0, False
+            if lg:
+                logos.append((start, len(rows), lg))
+        total = sum(r[2] + r[3] for r in rows)
+        if (ok and total <= 1440 - 575) or k <= 0.55:
+            break
+        k -= 0.05
+    y = 575 + max(0, (1440 - 575 - total) / 2 - 20)
+    ys = []
+    for txt, st, p, g, bullet, _ in rows:
+        y += g + p
+        base = y - p * 0.24
+        ys.append((y - p, y))
+        if bullet:
+            b = max(22, st.size * 0.34)
+            cy = base - st.size * 0.33
+            imgs.fill_rrect(im, (X_B, cy - b / 2, X_B + b, cy + b / 2), max(3, b * 0.2), ctx.accent)
+        draw_line(d, txt, fit(txt, st, R - X_T), X_T if txt is not head else X_B, base, "left")
+    for a, b2, lg in logos:                         # logo on the right, centred on its business
+        top, bot = ys[a][0], ys[b2 - 1][1]
+        im.paste(lg, (int(R - lg.width), int((top + bot) / 2 - lg.height / 2)), lg)
     return im
 
 
@@ -788,7 +968,8 @@ def business_items(w: dict) -> list:
         x = x or {}
         n, ds = str(x.get("name") or "").strip(), str(x.get("desc") or "").strip()
         if n or ds:
-            out.append({"type": " ".join(str(x.get("type") or "").split()), "name": n, "desc": ds})
+            out.append({"type": " ".join(str(x.get("type") or "").split()), "name": n, "desc": ds,
+                        "logo": x.get("logo") or (w.get("logo") if not out else None)})   # row 1 = the profile logo
     if not out and (w.get("company") or w.get("desc")):
         out.append({"type": str(w.get("label") or ""), "name": str(w.get("company") or ""), "desc": str(w.get("desc") or "")})
     return out
@@ -804,92 +985,6 @@ def business_heading(w: dict) -> str:
 
 def is_family_business(t) -> bool:
     return " ".join(str(t or "").replace("_", " ").lower().split()) == "family business"
-
-
-def _business_flow(im, d, ctx: Ctx, w: dict, bizs: list, ph, right: int, x: int, align: str) -> Image.Image:
-    """Business card when there are 2-4 businesses, the company name is long or typed on several lines (or the
-    description has line breaks): logo, then per business the name lines (bold, wrapped, never into the photo) and
-    the description lines; sizes shrink together until everything fits. Centred with a logo; without a logo the text
-    starts a little below the top of the photo.
-    2-4 businesses (CT, 14 Oct 2026): a theme-colour bullet per business, left-aligned; a Family Business gets its own
-    bulleted line "Family Business" with the name and work below it, any other business has the bullet before its name."""
-    multi = len(bizs) > 1
-    if multi and not ph:
-        x, align = 110, "left"
-    maxw = right - 50 if ph else (1100 if not multi else 990)
-    base = Style(gu="akhand_xb", lat="barlow_xb", size=91.1, color=BLACK)
-    parts = [(is_family_business(b.get("type")) and multi, hard_lines(b["name"]), hard_lines(b["desc"])) for b in bizs]
-    all_comp = [seg for _, comp, _ in parts for seg in comp]
-    k = 0.85 if multi else 1.0                            # several businesses: start a little smaller
-    while True:
-        ind = int(round(52 * k)) if multi else 0            # text after the bullet
-        tw = maxw - ind
-        # typed lines: each stays ONE line when all of them fit at >= 70 % (same size for all); else wrapped
-        single = None
-        if len(all_comp) > 1:
-            single = next((s1 for s1 in (1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7)
-                           if all(measure(seg, base.scaled(k * s1)) <= tw for seg in all_comp)), None)
-            single = single and single * k
-        blocks, ok = [], True                             # (line, style, pitch, gap_before, bullet | "head")
-        head = business_heading(w) if multi else ""
-        if head:                                          # one heading over all businesses, no bullet (CT, 15 Oct 2026)
-            st = base.scaled(k)
-            hl = [head] if measure(head, st.scaled(0.8)) <= maxw else wrap_balanced(head, st, maxw)
-            ok = ok and len(hl) <= 2
-            for ln in hl:
-                blocks.append((ln, st, st.size * 1.12, 0, "head"))
-        for bi, (fam, comp, desc) in enumerate(parts):
-            gap_b = (56 * k) if bi else (30 * k if head else 0)
-            bullet = multi
-            if fam:                                       # "■ Family Business", then the name without a bullet
-                st = base.scaled(k)
-                blocks.append(("Family Business", st, st.size * 1.12, gap_b, True))
-                gap_b, bullet = 6 * k, False
-            st = base.scaled((single or k) * (0.86 if multi else 1.0))   # names a little under "Family Business"
-            for seg in comp:                             # max 2 lines per typed line (one long name: 3), evenly broken
-                # a typed line that nearly fits stays whole: fit() shrinks just that line a little
-                ls = [seg] if single or measure(seg, st.scaled(0.78 if multi else 0.85)) <= tw \
-                    else wrap_balanced(seg, st, tw)
-                ok = ok and len(ls) <= (3 if len(comp) == 1 and not multi else 2)
-                for ln in ls:
-                    blocks.append((ln, st, st.size * 1.12, gap_b, bullet))
-                    gap_b, bullet = 0, False
-            kd = max(k, 0.8) if not multi else k          # the description keeps a readable size
-            std = Style(gu="akhand_xb", lat="barlow_b", size=66.7 * kd, color=ctx.accent)
-            first_d = True
-            for seg in desc:
-                ls = wrap_balanced(seg, std, tw)
-                ok = ok and len(ls) <= 3
-                for ln in ls:
-                    blocks.append((ln, std, 85.4 * kd, (gap_b or (20 * k if comp and first_d else 0)), bullet))
-                    gap_b, first_d, bullet = 0, False, False
-        text_h = sum(p + g for _, _, p, g, _ in blocks)
-        room = 1440 - 560 - text_h - 40
-        lg = None
-        if (w.get("logo") or w.get("_logo_photo")) and room >= 90:
-            box = (min(353, maxw), min(328, room))
-            lg = imgs.contain(_logo_src(ctx, w), *box) if w.get("logo") else _logo_img(_logo_src(ctx, w), *box)
-        total = text_h + (lg.height + 40 if lg else 0)
-        if (ok and total <= 1440 - 600) or k <= 0.5:
-            break
-        k -= 0.05
-    # with a logo: centred; without: starts a little below the top of the photo (582), never above it
-    y = max(560, (560 + 1440) / 2 - total / 2) if lg else (630 if ph else 640)
-    if lg:
-        _paste_logo(im, lg, x, align, y)
-        y += lg.height + 40
-    for ln, st, p, g, bullet in blocks:
-        y += g + p
-        base_y = y - p * 0.22
-        if bullet == "head":                              # the heading starts where the bullets are
-            draw_line(d, ln, fit(ln, st, maxw), x, base_y, align)
-            continue
-        if bullet:                                        # theme-colour square, centred on the capital letters
-            b = st.size * 0.36
-            cy = base_y - st.size * 0.36
-            imgs.fill_rrect(im, (x, cy - b / 2, x + b, cy + b / 2), max(3, b * 0.18), ctx.accent)
-        draw_line(d, ln, fit(ln, st, tw), x + ind, base_y, align)
-    return im
 
 
 def property_card(ctx: Ctx, items: list, first: str) -> Image.Image:
@@ -1012,6 +1107,8 @@ def awards_card(ctx: Ctx, items: list, first: str) -> Image.Image:
 def single_property(p: dict):
     """The text when the profile has exactly ONE Income / Property line: it is shown in the gallery's white strip
     after a theme-colour bullet (no "PROPERTY:" word) instead of an own card. Otherwise None."""
+    if p.get("property_card"):           # app tick "Income / Property on its own slide" (team PSDs)
+        return None
     items = [str(x).strip() for x in (p.get("property") or []) if str(x).strip()]
     return items[0] if len(items) == 1 else None
 

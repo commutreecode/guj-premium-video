@@ -72,6 +72,12 @@ def build(p: dict, base: Path, images: bool = True) -> tuple[list[Scene], cards.
                     continue
                 sid = f"sibling{i}"          # a sibling with a photo: own card + narration, as before
                 out.append(Scene(sid, "card", mk(lambda: cards.sibling(ctx, s)), scene_text(sid, p, s)))
+        elif sec == "education" and cards.edu_work_fits(p):   # both on one card (app tick, team PSDs)
+            out.append(Scene("edu_work", "card", mk(lambda: cards.edu_work(ctx, p, first)),
+                             " ".join(t for t in (scene_text("education", p, p["education"]),
+                                                  scene_text("work", p, p["work"])) if t)))
+        elif sec == "work" and cards.edu_work_fits(p):
+            pass                                                # already on the education card
         elif sec == "education" and p.get("education"):
             out.append(Scene("education", "card", mk(lambda: cards.education(ctx, p["education"], first, edu_fb)),
                              scene_text("education", p, p["education"])))

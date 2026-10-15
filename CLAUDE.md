@@ -37,6 +37,9 @@ running with `--voice`, so the voice is split on the right cards.
 siblings with a photo keep their card + narration (CT, 15 Oct 2026). A silent card in the middle is fine: the voice is
 split over the narrated cards only. Narration rule change → bump `NARRATION_STYLE` in the automation's `auto.py`.
 
+The team PSDs (15 Oct 2026) are the reference for card looks: see "Team PSDs" in README.md. Fonts used: Akhand Gujarati,
+Anek Gujarati, Barlow / Barlow Condensed (incl. BarlowCondensed-BoldItalic.ttf, OFL, added 15 Oct 2026), Poppins.
+
 ## Never silently degrade
 If a feature can't work (face detector, RAQM), the render must stop with an error. Run `python3 tests/run_tests.py`
 after any change; keep `requirements.txt` upper bounds until a new major version passes the tests.

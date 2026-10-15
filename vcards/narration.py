@@ -137,6 +137,12 @@ def scene_text(scene_id: str, p: dict, data) -> str:
                 # 2+ businesses: a Family Business row is said as on the slide, "Family Business <name>, <work>"
                 if len(bizs) > 1 and is_family_business(b.get("type")) and txt:
                     txt = "Family Business " + txt
+                # one business (team PSDs, 15 Oct 2026): the slide shows its label ("FAMILY BUSINESS") above the name,
+                # so the voice says it too: "Family Business Royal Interior, Rajkot, Turnkey Project Contractor."
+                if len(bizs) == 1 and txt:
+                    lab = " ".join(str(b.get("type") or data.get("label") or "").replace("_", " ").split())
+                    if lab:
+                        txt = f"{lab} {txt}"
                 items.append(txt)
         return _join([f"{first} નુ ઓક્યુપેશન"] + [i for i in items if i])
     if scene_id == "property":

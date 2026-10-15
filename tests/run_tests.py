@@ -220,8 +220,8 @@ def main():
     pix = lambda box: list(zip(*[iter(jc.crop(box).tobytes())] * 3))
     green = lambda box: any(g > 150 and r < 80 and b < 80 for r, g, b in pix(box))
     ys = [y for y in range(560, 1440, 4) if green((40, y, 800, y + 4))]
-    acc = ImageColor.getrgb(ctx.accent)
-    comp_ys = [y for y in range(560, 1440, 4) if any(max(abs(a - b) for a, b in zip(c, acc)) < 30 for c in pix((40, y, 800, y + 4)))]
+    occ_name = ImageColor.getrgb(cards.OCC_NAME)          # "at Company" in dark brown (team PSDs, 15 Oct 2026)
+    comp_ys = [y for y in range(560, 1440, 4) if any(max(abs(a - b) for a, b in zip(c, occ_name)) < 30 for c in pix((40, y, 800, y + 4)))]
     check("job card: designation, company name, then the logo below it (CT, 14 Oct 2026)",
           ys and comp_ys and min(ys) > max(comp_ys), f"logo {ys[:1]}..{ys[-1:]} company {comp_ys[:1]}..{comp_ys[-1:]}")
     check("job card: logo larger than before (wide logo up to 600 px wide)", ys and 96 <= max(ys) - min(ys) + 4, f"{max(ys) - min(ys) + 4} px tall")
@@ -384,82 +384,105 @@ def main():
         px1 = list(zip(*[iter(f1.crop((0, 640, 1200, 1180)).tobytes())] * 3))
         check(f"{kind} with a photo: photo layout (no big name)", sum(1 for p in px1 if max(abs(a - b) for a, b in zip(p, nb)) < 14) < 2000)
 
-    # business card: a long company name (or typed lines) wraps and never runs into the photo (CT, 13 Oct 2026)
+    # occupation card (team PSDs, 15 Oct 2026): one business = label, name, (work), photo right; 2-4 businesses =
+    # heading + a bullet per business, NO candidate photo
     bctx = cards.Ctx("boy", ROOT / "samples", "clear")
-    long_c = {"style": "business", "company": "Shree Sample Saw Mill, Kurundwad-Kolhapur + Construction Material Supplier",
-              "desc": "Retailer of Building Material"}
+    long_c = {"style": "business", "label": "Family Business",
+              "company": "Shree Sample Saw Mill, Kurundwad-Kolhapur + Construction Material Supplier", "desc": "Retailer of Building Material"}
     two_c = dict(long_c, company="Shree Sample Saw Mill, Kurundwad-Kolhapur\n+ Sample Construction, Kolhapur")
     short_c = dict(long_c, company="Sample Electronics, Deesa")
     bl, bt, bs = (cards.work(bctx, c, "x", "photos/g3.jpg").convert("RGB") for c in (long_c, two_c, short_c))
-    dark_in = lambda im, box: any(max(p) < 60 for p in zip(*[iter(im.crop(box).tobytes())] * 3))
-    check("long business name: wrapped, nothing between the text column and the photo, photo frame unchanged",
+    dark_in = lambda im, box: any(max(p) < 140 for p in zip(*[iter(im.crop(box).tobytes())] * 3))
+    check("one business: long name wrapped, nothing between the text column and the photo, photo frame unchanged",
           not dark_in(bl, (800, 560, 838, 1440)) and not dark_in(bt, (800, 560, 838, 1440))
           and ImageChops.difference(bl.crop((838, 560, 1190, 1300)), bs.crop((838, 560, 1190, 1300))).getbbox() is None)
-    def dark_rows(im, x0=40, x1=800, y0=560, y1=1440):     # text lines (runs of rows with dark ink) in the text column
+    def dark_rows(im, x0=40, x1=800, y0=560, y1=1440):     # text lines (black / brown ink) in the text column
         n, inside = 0, False
         for y in range(y0, y1):
-            ink = any(max(im.getpixel((x, y))) < 60 for x in range(x0, x1, 3))
+            ink = any(max(im.getpixel((x, y))) < 140 for x in range(x0, x1, 3))
             n, inside = n + (ink and not inside), ink
         return n
-    check("business name typed on 2 lines: kept as lines (4 rows: 2 + 2 wrapped), short name: 1 row",
-          dark_rows(bt) == 4 and dark_rows(bs) == 1, f"{dark_rows(bt)} / {dark_rows(bs)}")
-    b3 = cards.work(bctx, dict(long_c, company="Shree Kailashpati Saw Mill, Kurundwad-Kolhapur\n+ Construction Contractor"),
-                    "x", "photos/g3.jpg").convert("RGB")
-    check("a typed line that nearly fits stays whole (2 + 1 rows), not into the photo",
-          dark_rows(b3) == 3 and not dark_in(b3, (800, 560, 838, 1440)), str(dark_rows(b3)))
-    # 2-4 businesses (app rows Name / Work): stacked on the occupation card, text from the top without a logo
+    check("one business: label + name + work (3 rows); typed 2 lines kept as lines (more rows)",
+          3 <= dark_rows(bs) <= 4 and dark_rows(bt) > dark_rows(bs), f"{dark_rows(bs)} / {dark_rows(bt)}")
     bb = {"style": "business", "company": "Shree Sample Saw Mill, Kurundwad-Kolhapur", "desc": "Retailer of Building Material",
           "businesses": [{"name": "Shree Sample Saw Mill, Kurundwad-Kolhapur", "desc": "Retailer of Building Material"},
                          {"name": "Sample Construction Contractor", "desc": ""}]}
     b4 = cards.work(bctx, bb, "x", "photos/g3.jpg").convert("RGB")
-    top_ink = next((y for y in range(560, 1440) if any(max(b4.getpixel((x, y))) < 60 for x in range(40, 800, 3))), 9999)
-    check("2 businesses: stacked, text starts a little below the photo top (582), not into the photo",
-          dark_rows(b4) in (3, 4) and 600 < top_ink < 700 and not dark_in(b4, (800, 560, 838, 1440)), f"{dark_rows(b4)} rows, top {top_ink}")
+    plain = cards.canvas(bctx).convert("RGB")
+    check("2 businesses: no candidate photo (right side stays background), heading + 3 text rows",
+          ImageChops.difference(b4.crop((900, 1000, 1190, 1440)), plain.crop((900, 1000, 1190, 1440))).getbbox() is None
+          and 4 <= dark_rows(b4, 40, 1150) <= 5, f"rows {dark_rows(b4, 40, 1150)}")
     acc = ImageColor.getrgb(bctx.accent)
     def bullets(im):                                        # theme-colour squares at the left edge of the text column
         n, inside = 0, False
         for y in range(560, 1440):
-            hit = any(max(abs(a - b) for a, b in zip(im.getpixel((x, y)), acc)) < 30 for x in range(51, 66, 2))
+            hit = any(max(abs(a - b) for a, b in zip(im.getpixel((x, y)), acc)) < 30 for x in range(51, 70, 2))
             n, inside = n + (hit and not inside), hit
         return n
     fam = dict(bb, businesses=[dict(bb["businesses"][0], type="Family Business"), dict(bb["businesses"][1], type="Own Business")])
     bf = cards.work(bctx, fam, "x", "photos/g3.jpg").convert("RGB")
     check("2 businesses: one bullet each (Family Business on its own bulleted line)", bullets(b4) == 2 and bullets(bf) == 2,
           f"{bullets(b4)} / {bullets(bf)}")
-    check("one business: no bullet (approved layout)", bullets(cards.work(bctx, short_c, "x", "photos/g3.jpg").convert("RGB")) == 0)
+    check("one business: no bullet", bullets(bs) == 0)
+    lg2 = dict(bb, businesses=[dict(bb["businesses"][0], logo="out/_logo.jpg"), bb["businesses"][1]])
+    bl2 = cards.work(cards.Ctx("boy", ROOT, "clear"), lg2, "x", "samples/photos/g3.jpg").convert("RGB")
+    gr = [x for x in range(700, 1190, 4) for y in range(560, 1100, 8) if (lambda c: c[1] > 150 and c[0] < 80 and c[2] < 80)(bl2.getpixel((x, y)))]
+    check("2 businesses: a business logo on the right of its row", bool(gr) and min(gr) > 800, f"{min(gr) if gr else None}")
     from vcards.narration import scene_text
     pb = {"name": "x", "first_name": "x", "work": bb}
     nb = scene_text("work", pb, bb)
-    nfam = scene_text("work", pb, dict(bb, businesses=[dict(bb["businesses"][0], type="Family Business"), dict(bb["businesses"][1], type="Own Business")]))
+    nfam = scene_text("work", pb, fam)
     check("narration: 2+ businesses, a Family Business row is said 'Family Business <name>'",
           nfam == "x નુ ઓક્યુપેશન. Family Business Shree Sample Saw Mill, Kurundwad-Kolhapur, Retailer of Building Material. Sample Construction Contractor.", nfam)
     check("narration: one sentence per business",
           nb == "x નુ ઓક્યુપેશન. Shree Sample Saw Mill, Kurundwad-Kolhapur, Retailer of Building Material. Sample Construction Contractor.", nb)
-    # heading over all businesses (the team's own occupation type, CT 15 Oct 2026): slide + narration, 2+ businesses only
+    n1 = scene_text("work", pb, short_c)
+    check("narration: one business says its label (as on the slide)",
+          n1 == "x નુ ઓક્યુપેશન. Family Business Sample Electronics, Deesa, Retailer of Building Material.", n1)
     hd = dict(bb, heading="Businesses in Kolhapur")
     bh = cards.work(bctx, hd, "x", "photos/g3.jpg").convert("RGB")
-    top_h = next((y for y in range(560, 1440) if any(max(bh.getpixel((x, y))) < 60 for x in range(40, 800, 3))), 9999)
-    check("business heading: drawn above the list (no bullet), bullets unchanged, nothing into the photo",
-          bullets(bh) == 2 and dark_rows(bh) == dark_rows(b4) + 1 and top_h < top_ink and not dark_in(bh, (800, 560, 838, 1440)),
-          f"bullets {bullets(bh)}, rows {dark_rows(bh)} vs {dark_rows(b4)}, top {top_h} vs {top_ink}")
+    check("business heading: replaces 'BUSINESS' above the list (no bullet), bullets unchanged",
+          bullets(bh) == 2 and dark_rows(bh, 40, 1150) == dark_rows(b4, 40, 1150), f"bullets {bullets(bh)}")
     nh = scene_text("work", pb, hd)
     check("narration: business heading said first",
           nh == "x નુ ઓક્યુપેશન. Businesses in Kolhapur. Shree Sample Saw Mill, Kurundwad-Kolhapur, Retailer of Building Material. Sample Construction Contractor.", nh)
     one_h = dict(short_c, heading="Businesses in Kolhapur")
-    check("business heading: ignored with one business (approved layout, narration unchanged)",
+    check("business heading: ignored with one business",
           cards.business_heading(one_h) == "" and scene_text("work", pb, one_h) == scene_text("work", pb, short_c))
-    # heading over all businesses (the team's own occupation type, CT 15 Oct 2026): slide + narration, 2+ businesses only
-    hd = dict(bb, heading="Businesses in Kolhapur")
-    bh = cards.work(bctx, hd, "x", "photos/g3.jpg").convert("RGB")
-    check("business heading: one more line on top (no bullet), bullets unchanged, nothing into the photo",
-          bullets(bh) == 2 and dark_rows(bh) == dark_rows(b4) + 1 and not dark_in(bh, (800, 560, 838, 1440)),
-          f"bullets {bullets(bh)}, rows {dark_rows(bh)} vs {dark_rows(b4)}")
-    nh = scene_text("work", pb, hd)
-    check("narration: business heading said first",
-          nh == "x નુ ઓક્યુપેશન. Businesses in Kolhapur. Shree Sample Saw Mill, Kurundwad-Kolhapur, Retailer of Building Material. Sample Construction Contractor.", nh)
-    one_h = dict(short_c, heading="Businesses in Kolhapur")
-    check("business heading: ignored with one business (approved layout, narration unchanged)",
-          cards.business_heading(one_h) == "" and scene_text("work", pb, one_h) == scene_text("work", pb, short_c))
+    # team PSDs (15 Oct 2026): same village + city, degree lines, education + occupation on one slide, own income slide
+    check("same village and city: '(બોટાદ)' only", cards.gaam_haal("બોટાદ", "બોટાદ") == "(બોટાદ)"
+          and cards.gaam_haal("ગોરેલ", "ઇડર") == "(ગામઃ ગોરેલ, હાલઃ ઇડર)")
+    check("degree lines: plain lines big, a line in brackets small",
+          cards.deg_lines({"degree": "CA\nChartered Accountant\n(Gold Medalist)"}) == (["CA", "Chartered Accountant"], ["(Gold Medalist)"]))
+    from vcards import scenes as SC
+    pe = json.loads(sample.read_text(encoding="utf-8"))
+    pe.update(edu_work_one=True, education=[{"degree": "B.Com", "institute": "Mithibai College"}],
+              work={"style": "bullets", "bullets": ["Accountant at Rawani & Co., Borivali West"]})
+    sce = SC.build(pe, ROOT / "samples", images=False)[0]
+    ids = [x.id for x in sce]
+    ew = [x.text for x in sce if x.id == "edu_work"]
+    check("tick edu_work_one: ONE card for education + occupation, one voice block",
+          "edu_work" in ids and "education" not in ids and "work" not in ids and ew
+          and ew[0] == "નમૂના નુ એજ્યુકેશન. B.Com. નમૂના નુ ઓક્યુપેશન. Accountant at Rawani and Co., Borivali West.", f"{ids} {ew}")
+    pe2 = dict(pe, education=pe["education"] * 4)
+    check("tick edu_work_one ignored when it does not fit (4 degrees)", not cards.edu_work_fits(pe2))
+    ime = cards.edu_work(cards.Ctx("girl", ROOT / "samples"), pe, "x")
+    check("education + occupation card renders", ime.size == (1200, 1500))
+    pp = json.loads(sample.read_text(encoding="utf-8"))
+    one_prop = dict(pp, property=["Residence 2BHK at Ghatkopar"])
+    check("one Income / Property line: gallery strip, with tick property_card: own slide",
+          "property" not in [x.id for x in SC.build(one_prop, ROOT / "samples", images=False)[0]]
+          and "property" in [x.id for x in SC.build(dict(one_prop, property_card=True), ROOT / "samples", images=False)[0]])
+    mo = {"name": "મા", "photo": "photos/mother.jpg", "jobs": [{"type": "HouseWife", "name": "", "desc": ""}]}
+    m0 = cards.single_parent(cards.Ctx("girl", ROOT / "samples"), "mother", mo).convert("RGB")
+    m1 = cards.single_parent(cards.Ctx("girl", ROOT / "samples"), "mother", dict(mo, education="M.Com + LLB")).convert("RGB")
+    def wrows(im, y0=1100, y1=1500):
+        n, inside = 0, False
+        for y in range(y0, y1):
+            ink = any(min(im.getpixel((x, y))) > 235 for x in range(200, 1000, 4))
+            n, inside = n + (ink and not inside), ink
+        return n
+    check("parent education: one more line in the band, above the type", wrows(m1) == wrows(m0) + 1, f"{wrows(m0)} -> {wrows(m1)}")
     nf = scene_text("father", pb, {"jobs": [{"type": "Business", "name": "Shree Sample Saw Mill, Kurundwad-Kolhapur", "desc": "x"},
                                             {"type": "Job", "name": "Sample Bank, Kolhapur", "desc": ""}]})
     check("narration: parent rows, the candidate's own business says only its type", nf == "પિતા. Business, Job, Sample Bank, Kolhapur.", nf)
