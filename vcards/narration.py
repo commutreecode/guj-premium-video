@@ -128,6 +128,9 @@ def scene_text(scene_id: str, p: dict, data) -> str:
             items = []
             from .cards import is_family_business
             bizs = business_items(data)
+            from .cards import business_heading
+            if business_heading(data):           # 2+ businesses with a heading: said first (CT, 15 Oct 2026)
+                items.append(clean(business_heading(data)))
             for b in bizs:
                 parts = [ln for x in [b["name"], b["desc"]] for ln in str(x or "").splitlines()]
                 txt = ", ".join(clean(x) for x in parts if clean(x))          # a typed line break = a comma

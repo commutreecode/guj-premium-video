@@ -794,6 +794,14 @@ def business_items(w: dict) -> list:
     return out
 
 
+def business_heading(w: dict) -> str:
+    """2-4 businesses: the optional heading over all of them (work.heading, e.g. "Businesses in Kolhapur": the team's
+    own occupation type, written by the app), shown once above the list and said first in the narration."""
+    if len(business_items(w or {})) < 2:
+        return ""
+    return " ".join(str((w or {}).get("heading") or "").split()).rstrip(":")
+
+
 def is_family_business(t) -> bool:
     return " ".join(str(t or "").replace("_", " ").lower().split()) == "family business"
 
@@ -822,9 +830,16 @@ def _business_flow(im, d, ctx: Ctx, w: dict, bizs: list, ph, right: int, x: int,
             single = next((s1 for s1 in (1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7)
                            if all(measure(seg, base.scaled(k * s1)) <= tw for seg in all_comp)), None)
             single = single and single * k
-        blocks, ok = [], True                             # (line, style, pitch, gap_before, bullet)
+        blocks, ok = [], True                             # (line, style, pitch, gap_before, bullet | "head")
+        head = business_heading(w) if multi else ""
+        if head:                                          # one heading over all businesses, no bullet (CT, 15 Oct 2026)
+            st = base.scaled(k)
+            hl = [head] if measure(head, st.scaled(0.8)) <= maxw else wrap_balanced(head, st, maxw)
+            ok = ok and len(hl) <= 2
+            for ln in hl:
+                blocks.append((ln, st, st.size * 1.12, 0, "head"))
         for bi, (fam, comp, desc) in enumerate(parts):
-            gap_b = (56 * k) if bi else 0
+            gap_b = (56 * k) if bi else (30 * k if head else 0)
             bullet = multi
             if fam:                                       # "■ Family Business", then the name without a bullet
                 st = base.scaled(k)
@@ -866,6 +881,9 @@ def _business_flow(im, d, ctx: Ctx, w: dict, bizs: list, ph, right: int, x: int,
     for ln, st, p, g, bullet in blocks:
         y += g + p
         base_y = y - p * 0.22
+        if bullet == "head":                              # the heading starts where the bullets are
+            draw_line(d, ln, fit(ln, st, maxw), x, base_y, align)
+            continue
         if bullet:                                        # theme-colour square, centred on the capital letters
             b = st.size * 0.36
             cy = base_y - st.size * 0.36

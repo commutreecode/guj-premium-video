@@ -89,6 +89,8 @@ as "Check voice: …").
 - **The voice stops after the occupation card** (team rule, Oct 2026): Past Experience, Income / Property and the photo
   gallery are shown with background music only (cards 4.5 s) and are not part of the narration
   (`VOICE_LAST_SECTION`, `TIMING["silent_card"]` in `vcards/config.py`).
+- **Business heading** (CT, 15 Oct 2026): `work.heading` (the team's own occupation type, e.g. "Businesses in Kolhapur")
+  with 2+ businesses is drawn once above the list (no bullet) and said first in the occupation sentence; ignored for one business.
 - **2 or more siblings without a photo** (CT, 15 Oct 2026): they are left out of the narration and shown together on
   ONE text slide (`sib_list`, music only, 4.5 s + 1.2 s per sibling above 2): relation title in the theme colour
   (siblings next to each other with the same relation share one title), then one brown line per sibling

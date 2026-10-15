@@ -435,6 +435,31 @@ def main():
           nfam == "x નુ ઓક્યુપેશન. Family Business Shree Sample Saw Mill, Kurundwad-Kolhapur, Retailer of Building Material. Sample Construction Contractor.", nfam)
     check("narration: one sentence per business",
           nb == "x નુ ઓક્યુપેશન. Shree Sample Saw Mill, Kurundwad-Kolhapur, Retailer of Building Material. Sample Construction Contractor.", nb)
+    # heading over all businesses (the team's own occupation type, CT 15 Oct 2026): slide + narration, 2+ businesses only
+    hd = dict(bb, heading="Businesses in Kolhapur")
+    bh = cards.work(bctx, hd, "x", "photos/g3.jpg").convert("RGB")
+    top_h = next((y for y in range(560, 1440) if any(max(bh.getpixel((x, y))) < 60 for x in range(40, 800, 3))), 9999)
+    check("business heading: drawn above the list (no bullet), bullets unchanged, nothing into the photo",
+          bullets(bh) == 2 and dark_rows(bh) == dark_rows(b4) + 1 and top_h < top_ink and not dark_in(bh, (800, 560, 838, 1440)),
+          f"bullets {bullets(bh)}, rows {dark_rows(bh)} vs {dark_rows(b4)}, top {top_h} vs {top_ink}")
+    nh = scene_text("work", pb, hd)
+    check("narration: business heading said first",
+          nh == "x નુ ઓક્યુપેશન. Businesses in Kolhapur. Shree Sample Saw Mill, Kurundwad-Kolhapur, Retailer of Building Material. Sample Construction Contractor.", nh)
+    one_h = dict(short_c, heading="Businesses in Kolhapur")
+    check("business heading: ignored with one business (approved layout, narration unchanged)",
+          cards.business_heading(one_h) == "" and scene_text("work", pb, one_h) == scene_text("work", pb, short_c))
+    # heading over all businesses (the team's own occupation type, CT 15 Oct 2026): slide + narration, 2+ businesses only
+    hd = dict(bb, heading="Businesses in Kolhapur")
+    bh = cards.work(bctx, hd, "x", "photos/g3.jpg").convert("RGB")
+    check("business heading: one more line on top (no bullet), bullets unchanged, nothing into the photo",
+          bullets(bh) == 2 and dark_rows(bh) == dark_rows(b4) + 1 and not dark_in(bh, (800, 560, 838, 1440)),
+          f"bullets {bullets(bh)}, rows {dark_rows(bh)} vs {dark_rows(b4)}")
+    nh = scene_text("work", pb, hd)
+    check("narration: business heading said first",
+          nh == "x નુ ઓક્યુપેશન. Businesses in Kolhapur. Shree Sample Saw Mill, Kurundwad-Kolhapur, Retailer of Building Material. Sample Construction Contractor.", nh)
+    one_h = dict(short_c, heading="Businesses in Kolhapur")
+    check("business heading: ignored with one business (approved layout, narration unchanged)",
+          cards.business_heading(one_h) == "" and scene_text("work", pb, one_h) == scene_text("work", pb, short_c))
     nf = scene_text("father", pb, {"jobs": [{"type": "Business", "name": "Shree Sample Saw Mill, Kurundwad-Kolhapur", "desc": "x"},
                                             {"type": "Job", "name": "Sample Bank, Kolhapur", "desc": ""}]})
     check("narration: parent rows, the candidate's own business says only its type", nf == "પિતા. Business, Job, Sample Bank, Kolhapur.", nf)
