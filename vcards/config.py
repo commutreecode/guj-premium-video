@@ -59,6 +59,7 @@ TIMING = {
     "cover": 0.5,           # hero card shown first, so the video's first frame (thumbnail) is the candidate
     "cover_xfade": 0.3,     # quick dissolve cover -> intro
     "silent_card": 4.5,     # length of a card shown with music only (no voice), e.g. Income / Property
+    "sib_list_per": 1.2,    # siblings text slide (2+ siblings without a photo, music only): +1.2 s per sibling above 2
 }
 
 # Team rule (Oct 2026): the voice stops after the occupation card. Every card after this section in the video

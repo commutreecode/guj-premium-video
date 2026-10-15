@@ -33,6 +33,10 @@ card** (`VOICE_LAST_SECTION = "work"` in `vcards/config.py`): Income / Property 
 TTS text for a profile, put the same text into `out/<id>/narration.txt` (keep the `[NN id]` labels) before
 running with `--voice`, so the voice is split on the right cards.
 
+2+ siblings without a photo: one music-only text slide `sib_list` (not narrated) where the first of them would be;
+siblings with a photo keep their card + narration (CT, 15 Oct 2026). A silent card in the middle is fine: the voice is
+split over the narrated cards only. Narration rule change → bump `NARRATION_STYLE` in the automation's `auto.py`.
+
 ## Never silently degrade
 If a feature can't work (face detector, RAQM), the render must stop with an error. Run `python3 tests/run_tests.py`
 after any change; keep `requirements.txt` upper bounds until a new major version passes the tests.

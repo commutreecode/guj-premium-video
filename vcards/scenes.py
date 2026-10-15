@@ -12,6 +12,12 @@ DEFAULT_ORDER = ["intro", "hero", "dada_dadi", "nana_nani", "parents", "mother",
                  "siblings", "education", "work", "past", "awards", "property", "gallery"]
 
 
+def sib_list_seconds(n: int) -> float:
+    """Reading time of the siblings text slide (music only): 4.5 s, +1.2 s per sibling above 2."""
+    from .config import TIMING
+    return TIMING["silent_card"] + TIMING["sib_list_per"] * max(0, n - 2)
+
+
 @dataclass
 class Scene:
     id: str
@@ -55,8 +61,16 @@ def build(p: dict, base: Path, images: bool = True) -> tuple[list[Scene], cards.
         elif sec in ("mother", "father") and p.get(sec):
             out.append(Scene(sec, "card", mk(lambda: cards.single_parent(ctx, sec, p[sec], couple)), scene_text(sec, p, p[sec])))
         elif sec == "siblings":
-            for i, s in enumerate(p.get("siblings", []), 1):
-                sid = f"sibling{i}"
+            sibs = p.get("siblings", [])
+            plain = [s for s in sibs if cards.no_photo(s)]
+            grouped = len(plain) >= 2        # 2+ siblings without a photo: ONE text slide, music only (CT, 15 Oct 2026)
+            for i, s in enumerate(sibs, 1):
+                if grouped and cards.no_photo(s):
+                    if s is plain[0]:        # where the first of them would be
+                        out.append(Scene("sib_list", "card", mk(lambda: cards.siblings_list(ctx, plain)), "",
+                                         extra={"min_dur": sib_list_seconds(len(plain))}))
+                    continue
+                sid = f"sibling{i}"          # a sibling with a photo: own card + narration, as before
                 out.append(Scene(sid, "card", mk(lambda: cards.sibling(ctx, s)), scene_text(sid, p, s)))
         elif sec == "education" and p.get("education"):
             out.append(Scene("education", "card", mk(lambda: cards.education(ctx, p["education"], first, edu_fb)),

@@ -89,6 +89,11 @@ as "Check voice: …").
 - **The voice stops after the occupation card** (team rule, Oct 2026): Past Experience, Income / Property and the photo
   gallery are shown with background music only (cards 4.5 s) and are not part of the narration
   (`VOICE_LAST_SECTION`, `TIMING["silent_card"]` in `vcards/config.py`).
+- **2 or more siblings without a photo** (CT, 15 Oct 2026): they are left out of the narration and shown together on
+  ONE text slide (`sib_list`, music only, 4.5 s + 1.2 s per sibling above 2): relation title in the theme colour
+  (siblings next to each other with the same relation share one title), then one brown line per sibling
+  `<name> (<place>)`, or `(<occupation / education>)` when no place is filled (`cards.siblings_list`). Siblings with a
+  photo keep their own card and their narration; a single sibling without a photo keeps its own card as before.
 - If a voice has fewer parts than the narration (a block was not spoken), the render stops with `VOICE CHECK: …`
   instead of putting every later sentence on the wrong card.
 - In the education / occupation lines the first name is said without a title (`CA હિનલ` → `હિનલ`).

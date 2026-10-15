@@ -82,7 +82,8 @@ def main():
     sample = ROOT / "samples" / "profile.example.json"
     r = subprocess.run([sys.executable, "render.py", str(sample), "--cards-only"], cwd=ROOT, capture_output=True, text=True)
     cards = sorted((ROOT / "out" / "sample-girl" / "cards").glob("*.png"))
-    check("sample cards render", r.returncode == 0 and len(cards) == 11, f"{len(cards)} cards; {r.stderr[-200:]}")
+    # 10: the sample's one property line is shown in the gallery strip, not on an own card (renderer b51b227)
+    check("sample cards render", r.returncode == 0 and len(cards) == 10, f"{len(cards)} cards; {r.stderr[-200:]}")
 
     pe = json.loads(sample.read_text(encoding="utf-8"))          # same sample with edited photos (as the app writes them)
     pe["id"] = "_selftest-edit"
@@ -147,6 +148,63 @@ def main():
         sp, _, _ = align.split(bl, gaps, t)
         ok += all(abs(a - s) < 0.06 for (a, _), s in zip(sp, truth))
     check("simulated v4 voices (sample profile): all cards correct", ok == 60, f"{ok}/60")
+
+    # 2+ siblings WITHOUT a photo: one text slide, music only; a sibling with a photo keeps its card + voice (CT, 15 Oct 2026)
+    from vcards import cards as C, video as V
+    def sib(rel, name, place=None, occ=None, photo=None):
+        o = {"relation": rel, "display_name": name, "details": [{"who": "", "text": occ}] if occ else []}
+        if place: o["place"] = place
+        if photo: o["photos"] = [photo]
+        return o
+    q = json.loads(sample.read_text(encoding="utf-8"))
+    photo_sib = q["siblings"][0]
+    q["siblings"] = [sib("bhai-bhabhi", "સાધના વિનોદ છેડા", "ગોરેગામ"), photo_sib, sib("bhai-bhabhi", "શીતલ શાંતિલાલ છેડા", "મલાડ"),
+                     sib("bahen-banevi", "સંગીતા હંસરાજ નિસર", "ફોર્ટ", "Teacher"), sib("bahen", "પૂજા છેડા", None, "B.Com")]
+    sc_q = scenes.build(q, ROOT / "samples", images=False)[0]
+    ids = [x.id for x in sc_q]
+    sl = [x for x in sc_q if x.id == "sib_list"]
+    check("2+ siblings without photo: one text slide where the first of them is, photo sibling keeps its card",
+          ids[ids.index("father") + 1:ids.index("education")] == ["sib_list", "sibling2"], str(ids))
+    check("siblings text slide: music only, not in the narration",
+          sl and sl[0].text == "" and not any("સાધના" in x.text or "પૂજા" in x.text for x in sc_q)
+          and [x.text for x in sc_q if x.id == "sibling2"][0] != "", str([x.text for x in sc_q if x.text][-4:]))
+    g = C.sibling_groups([x for x in q["siblings"] if C.no_photo(x)])
+    check("siblings text slide: same relation once, (place) else (occupation)",
+          g == [("ભાઈ-ભાભી", ["સાધના વિનોદ છેડા (ગોરેગામ)", "શીતલ શાંતિલાલ છેડા (મલાડ)"]),
+                ("બહેન-બનેવી", ["સંગીતા હંસરાજ નિસર (ફોર્ટ)"]), ("બહેન", ["પૂજા છેડા (B.Com)"])], str(g))
+    tl, _ = V.plan(sc_q, vo={x.id: 2.0 for x in sc_q if x.text})
+    dur = {e["id"]: e for e in tl}
+    check("siblings text slide: 4.5 s + 1.2 s per sibling above 2, no voice on it",
+          abs(dur["sib_list"]["dur"] - 6.9) < 0.01 and dur["sib_list"]["vo_start"] is None, str(dur["sib_list"]))
+    bl_q = [x.text for x in sc_q if x.text]
+    rnd = random.Random(5); okq = 0
+    for _ in range(20):
+        t, gaps, truth = 0.0, [], []
+        for i, b in enumerate(bl_q):
+            if i:
+                g_ = rnd.uniform(1.1, 1.9); gaps.append((t, t + g_)); t += g_
+            truth.append(t)
+            for j, ph in enumerate(align.phrases(b)):
+                t += 0.3 + 0.19 * align.phrase_syllables(ph, rnd.uniform(0.45, 0.75)) * rnd.uniform(0.85, 1.15)
+                if j < len(align.phrases(b)) - 1 and rnd.random() > 0.2:
+                    g_ = rnd.uniform(0.28, 0.8); gaps.append((t, t + g_)); t += g_
+        sp, _, _ = align.split(bl_q, gaps, t)
+        okq += all(abs(a - s_) < 0.06 for (a, _), s_ in zip(sp, truth))
+    check("simulated v4 voices with a music-only siblings slide in the middle: all cards correct", okq == 20, f"{okq}/20")
+    one = dict(q, siblings=[photo_sib, sib("bahen", "પૂજા છેડા", None, "B.Com")])
+    ids1 = [x.id for x in scenes.build(one, ROOT / "samples", images=False)[0]]
+    check("only ONE sibling without photo: own card + voice, as before", "sib_list" not in ids1 and "sibling2" in ids1, str(ids1))
+    ctx_q = C.Ctx("girl", ROOT / "samples")
+    im = C.siblings_list(ctx_q, [x for x in q["siblings"] if C.no_photo(x)])
+    many = [sib(r, "લાંબુ નામ ઉદાહરણ હસમુખલાલ પ્રવીણચંદ્ર શાહ", "ઘાટકોપર") for r in ("bhai-bhabhi", "bahen-banevi", "bhai", "bahen", "mota-bhai-bhabhi")]
+    im5 = C.siblings_list(ctx_q, many)
+    def ink_rows(img):
+        px = img.convert("RGB").load()
+        return [y for y in range(150, img.size[1]) if any(px[x, y][0] < 200 and abs(px[x, y][0] - px[x, y][2]) > 40
+                                                          for x in range(40, 1160, 3))]
+    r5 = ink_rows(im5)
+    check("siblings text slide: 5 groups with long names fit between header and bottom edge",
+          im.size == (1200, 1500) and r5 and r5[0] > 150 and r5[-1] < 1476, f"{r5[:1]}..{r5[-1:]}")
 
     # job card: company logo BELOW the company name, transparent; the person's photo stays on the right
     from vcards import cards

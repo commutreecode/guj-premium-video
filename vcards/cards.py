@@ -468,6 +468,78 @@ def sibling_no_photo(ctx: Ctx, s: dict) -> Image.Image:
     return im
 
 
+SIB_LIST_BROWN = "#975527"      # names on the siblings text slide (CT's reference, 15 Oct 2026)
+
+
+def no_photo(s: dict) -> bool:
+    return not [x for x in (s or {}).get("photos", []) if x]
+
+
+def sibling_list_line(s: dict) -> str:
+    """'<name> (<place>)', or '<name> (<occupation / education>)' when no place is filled (CT, 15 Oct 2026)."""
+    name = str(s.get("display_name", "")).strip()
+    extra = str(s.get("place") or "").strip()
+    if not extra:
+        extra = ", ".join(ln for x in s.get("details", []) for ln in _detail_segments(x))
+    if extra and not (extra.startswith("(") and extra.endswith(")")):
+        extra = f"({extra})"
+    return f"{name} {extra}".strip()
+
+
+def sibling_groups(sibs: list) -> list:
+    """[(relation title, [lines])]; siblings next to each other with the same relation share one title."""
+    out = []
+    for s in sibs:
+        rel = SIBLING_TITLES.get(s.get("relation", ""), s.get("relation", "")).replace(" - ", "-")
+        if out and out[-1][0] == rel:
+            out[-1][1].append(sibling_list_line(s))
+        else:
+            out.append((rel, [sibling_list_line(s)]))
+    return out
+
+
+def siblings_list(ctx: Ctx, sibs: list) -> Image.Image:
+    """2+ siblings without a photo: ONE text slide (relation title in the theme colour, one brown line per sibling),
+    shown with music only (CT's reference image, 15 Oct 2026). Siblings with a photo keep their own card."""
+    im = canvas(ctx)
+    d = ImageDraw.Draw(im)
+    groups = sibling_groups(sibs)
+    t_st = Style(gu="akhand_xb", lat="anek_sb", size=131, color=ctx.accent)
+    n_st = Style(gu="akhand_xb", lat="poppins_sb", size=100, lat_scale=0.9, color=SIB_LIST_BROWN)
+    names = [ln for _, ls in groups for ln in ls]
+    # every name line the same size (the longest one decides), like the reference
+    k = min([1.0] + [1130 / measure(ln, n_st) for ln in names if measure(ln, n_st) > 0])
+    kn = max(0.5, k)
+    n_st = n_st.scaled(kn)
+    t_k = min([1.0] + [1130 / measure(t, t_st) for t, _ in groups if measure(t, t_st) > 0])
+    t_st = t_st.scaled(max(0.5, t_k))
+    T_P, N_P, GAP = 120, 158, 282       # baseline steps measured on the reference: title->name, name->name, name->next title
+    f = min(1.0, kn / 0.92)             # clearly shrunk long names: keep them close to their title
+    T_P, N_P = T_P * f, N_P * f
+    top, bottom = 316, 1400             # first title baseline .. last name baseline (reference, 4 siblings in 3 groups)
+    base = sum(T_P + N_P * (len(ls) - 1) for _, ls in groups)
+    gap = GAP
+    if len(groups) > 1 and base + GAP * (len(groups) - 1) > bottom - top:
+        top, bottom = 290, 1430         # many siblings: use a little more of the page,
+        gap = max(170, (bottom - top - base) / (len(groups) - 1))      # then close the gaps between groups first,
+    span = base + gap * (len(groups) - 1)
+    s = min(1.0, (bottom - top) / span) if span else 1.0               # and only then make everything smaller
+    if s < 1:
+        t_st, n_st = t_st.scaled(s), n_st.scaled(s)
+    items, y = [], 0.0
+    for gi, (t, ls) in enumerate(groups):
+        if gi:
+            y += gap
+        items.append(("t", t, y)); y += T_P
+        for i, ln in enumerate(ls):
+            items.append(("n", ln, y)); y += N_P if i < len(ls) - 1 else 0
+    off = top + ((bottom - top) - span * s) / 2
+    for kind, txt, yy in items:
+        st = t_st if kind == "t" else n_st
+        draw_line(d, txt, fit(txt, st, 1130, 0.5), 600, off + yy * s)
+    return im
+
+
 def _draw_block(d, lines, y0, y1, x=600, align="center", max_w=1130):
     """Vertically centre a list of (text, style, pitch) lines inside y0..y1."""
     if not lines:
