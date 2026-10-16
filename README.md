@@ -100,9 +100,11 @@ as "Check voice: …").
 - **Business heading** (CT, 15 Oct 2026): `work.heading` (the team's own occupation type, e.g. "Businesses in Kolhapur")
   with 2+ businesses is drawn once above the list (no bullet) and said first in the occupation sentence; ignored for one business.
 - **2 or more siblings without a photo** (CT, 15 Oct 2026): they are left out of the narration and shown together on
-  ONE text slide (`sib_list`, music only, 4.5 s + 1.2 s per sibling above 2): relation title in the theme colour
-  (siblings next to each other with the same relation share one title), then one brown line per sibling
-  `<name> (<place>)`, or `(<occupation / education>)` when no place is filled (`cards.siblings_list`). Siblings with a
+  ONE text slide (`sib_list`, music only, 4.5 s + 1.2 s per sibling above 2). Look = the team PSD (CT, 16 Oct 2026):
+  relation title in light brown `SIB_LIST_TITLE` #97755F (siblings next to each other with the same relation share one
+  title), then per sibling the name in the theme colour (boy blue / girl pink) and `(<place>)` on the line below, or
+  `(<occupation / education>)` when no place is filled; spacing measured on the PSD (3 siblings: title 147 px, names
+  95 px), more lines → gaps closed a little, then letters and gaps smaller together (`cards.siblings_list`). Siblings with a
   photo keep their own card and their narration; a single sibling without a photo keeps its own card as before.
 - If a voice has fewer parts than the narration (a block was not spoken), the render stops with `VOICE CHECK: …`
   instead of putting every later sentence on the wrong card.

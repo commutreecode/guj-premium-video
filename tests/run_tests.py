@@ -170,8 +170,8 @@ def main():
           and [x.text for x in sc_q if x.id == "sibling2"][0] != "", str([x.text for x in sc_q if x.text][-4:]))
     g = C.sibling_groups([x for x in q["siblings"] if C.no_photo(x)])
     check("siblings text slide: same relation once, (place) else (occupation)",
-          g == [("ભાઈ-ભાભી", ["સાધના વિનોદ છેડા (ગોરેગામ)", "શીતલ શાંતિલાલ છેડા (મલાડ)"]),
-                ("બહેન-બનેવી", ["સંગીતા હંસરાજ નિસર (ફોર્ટ)"]), ("બહેન", ["પૂજા છેડા (B.Com)"])], str(g))
+          g == [("ભાઈ-ભાભી", [("સાધના વિનોદ છેડા", "(ગોરેગામ)"), ("શીતલ શાંતિલાલ છેડા", "(મલાડ)")]),
+                ("બહેન-બનેવી", [("સંગીતા હંસરાજ નિસર", "(ફોર્ટ)")]), ("બહેન", [("પૂજા છેડા", "(B.Com)")])], str(g))
     tl, _ = V.plan(sc_q, vo={x.id: 2.0 for x in sc_q if x.text})
     dur = {e["id"]: e for e in tl}
     check("siblings text slide: 4.5 s + 1.2 s per sibling above 2, no voice on it",
@@ -205,6 +205,20 @@ def main():
     r5 = ink_rows(im5)
     check("siblings text slide: 5 groups with long names fit between header and bottom edge",
           im.size == (1200, 1500) and r5 and r5[0] > 150 and r5[-1] < 1476, f"{r5[:1]}..{r5[-1:]}")
+    ctx_b = C.Ctx("boy", ROOT / "samples")
+    im3 = C.siblings_list(ctx_b, [sib("bahen-banevi", n, p) for n, p in (("ચેતના મનદિપ સોંડાગર", "મહુવા"),
+                                  ("અનિતા વિપુલ કનૈયાલાલ વડગામા", "સિહોર"), ("જયોતી આશિષ ભુપત કનોજીયા", "ભાવનગર"))]).convert("RGB")
+    def colour_rows(img, rgb, tol=40):
+        px, n, inside = img.load(), 0, False
+        for y in range(150, img.size[1]):
+            hit = any(max(abs(a - b) for a, b in zip(px[x, y], rgb)) < tol for x in range(40, 1160, 3))
+            n, inside = n + (hit and not inside), hit
+        return n
+    from PIL import ImageColor
+    acc_b = ImageColor.getrgb(ctx_b.accent)
+    check("siblings text slide = team PSD (16 Oct 2026): title light brown, name + (place) lines in the theme colour",
+          colour_rows(im3, ImageColor.getrgb(C.SIB_LIST_TITLE)) == 1 and colour_rows(im3, acc_b) == 6,
+          f"title rows {colour_rows(im3, ImageColor.getrgb(C.SIB_LIST_TITLE))}, name rows {colour_rows(im3, acc_b)}")
 
     # job card: company logo BELOW the company name, transparent; the person's photo stays on the right
     from vcards import cards
@@ -410,7 +424,8 @@ def main():
     b4 = cards.work(bctx, bb, "x", "photos/g3.jpg").convert("RGB")
     plain = cards.canvas(bctx).convert("RGB")
     check("2 businesses: no candidate photo (right side stays background), heading + 3 text rows",
-          ImageChops.difference(b4.crop((900, 1000, 1190, 1440)), plain.crop((900, 1000, 1190, 1440))).getbbox() is None
+          all(ImageChops.difference(b4.crop(bx), plain.crop(bx)).getbbox() is None       # where the photo was: only background
+              for bx in ((900, 560, 1190, 830), (900, 1330, 1190, 1440)))       # (the text itself may run full width)
           and 4 <= dark_rows(b4, 40, 1150) <= 5, f"rows {dark_rows(b4, 40, 1150)}")
     acc = ImageColor.getrgb(bctx.accent)
     def bullets(im):                                        # theme-colour squares at the left edge of the text column
