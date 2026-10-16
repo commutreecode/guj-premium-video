@@ -1178,7 +1178,7 @@ def past_experience(ctx: Ctx, items: list, first: str, fallback_photo=None) -> I
     while True:
         blocks = []
         for it in items:
-            lg = (_logo_img(ctx.photo(it["logo"]).load(), int(min(560, maxw) * k), int((210 if n == 1 else 150) * k))
+            lg = (_logo_img(imgs.opaque(ctx.photo(it["logo"]).load()), int(min(560, maxw) * k), int((210 if n == 1 else 150) * k))
                   if it.get("logo") else None)
             st = Style(gu="akhand_xb", lat="barlow_b", size=(78 if n == 1 else 68) * k, color=BLACK)
             ls, st = wrap_fit(it["text"], st, maxw, 2 if not ph else 3, 0.7)

@@ -71,7 +71,8 @@ class Gallery:
             self._cache = {}
             im, anchor, dy = imgs.cover_reserve(self.photos[i], W, PHOTO_H, HEADER_H, self.q,
                                                 FRAMING["gallery_max_upscale"] / T["zoom_end"])
-            im = im.filter(ImageFilter.UnsharpMask(radius=2, percent=50, threshold=3))   # crisper after enlarging
+            sharp = ImageFilter.UnsharpMask(radius=2, percent=50, threshold=3)           # crisper after enlarging
+            im = im.convert("RGBa").filter(sharp).convert("RGBA") if im.mode == "RGBA" else im.filter(sharp)
             self._cache[i] = (imgs.apply_privacy(im, self.ctx.privacy), anchor, dy)
         return self._cache[i]
 
@@ -107,8 +108,11 @@ class Gallery:
         data = (q / s, 0, q * (cx - cx / s), 0, q / s, q * (cy - cy / s))
         photo = base.transform((W, PHOTO_H - dy), Image.AFFINE, data, Image.BICUBIC)
         fr = imgs.background().convert("RGBA")
-        fr.paste(photo, (0, dy))
-        if dy > 0:      # little photo above the head (e.g. cropped tight): extend its top edge, never a light bar
+        if photo.mode == "RGBA":    # see-through photo ("Transparent"): the slide's own background behind the person
+            fr.alpha_composite(photo, (0, dy))
+        else:
+            fr.paste(photo, (0, dy))
+        if dy > 0 and photo.mode != "RGBA":   # little photo above the head (e.g. cropped tight): extend its top edge, never a light bar
             edge = photo.crop((0, 0, W, max(6, min(photo.height, dy // 4))))
             fr.paste(edge.resize((W, dy), Image.BILINEAR).filter(ImageFilter.GaussianBlur(14)), (0, 0))
         fr = Image.alpha_composite(fr, self.overlay).convert("RGB")

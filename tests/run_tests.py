@@ -79,6 +79,24 @@ def main():
         bad.append("16-bit png")
     check("photo types load: " + ", ".join(fmts) + ", 16-bit png", not bad, ", ".join(bad))
 
+    # see-through photo ("Transparent" in the app's photo editor): kept RGBA, the card's design shows behind the person;
+    # a PNG whose alpha is fully opaque still loads as plain RGB (approved look unchanged)
+    t = Image.new("RGBA", (300, 400), (0, 0, 0, 0))
+    t.paste((90, 105, 125, 255), (60, 120, 240, 400))
+    t.save(ROOT / "out" / "_transp.png")
+    Image.new("RGBA", (64, 48), (200, 180, 160, 255)).save(ROOT / "out" / "_opaque.png")
+    imgs._load_file.cache_clear(); imgs.load.cache_clear(); imgs.faces.cache_clear()
+    tp = imgs.Photo("out/_transp.png", ROOT)
+    can = imgs.background().copy()
+    imgs.paste_photo(can, tp, (100, 100, 400, 500), 20)
+    bgpx, cpx = imgs.background().getpixel((130, 130)), can.getpixel((130, 130))
+    check("see-through photo: RGBA kept, faces on RGB, the card shows through, opaque PNG stays RGB",
+          imgs.load(tp.src).mode == "RGBA" and imgs.faces(*tp.key) == () and cpx == bgpx
+          and can.getpixel((250, 450)) == (90, 105, 125) and imgs.load(ROOT / "out" / "_opaque.png").mode == "RGB",
+          f"{imgs.load(tp.src).mode} {cpx} vs {bgpx} {can.getpixel((250, 450))}")
+    blur = imgs.apply_privacy(imgs.cover(tp, 300, 400), "blur")
+    check("see-through photo: privacy blur keeps alpha", blur.mode == "RGBA" and blur.getpixel((5, 5))[3] < 40, str(blur.getpixel((5, 5))))
+
     sample = ROOT / "samples" / "profile.example.json"
     r = subprocess.run([sys.executable, "render.py", str(sample), "--cards-only"], cwd=ROOT, capture_output=True, text=True)
     cards = sorted((ROOT / "out" / "sample-girl" / "cards").glob("*.png"))

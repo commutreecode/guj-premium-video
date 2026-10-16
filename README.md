@@ -172,7 +172,9 @@ Low-resolution photos are never enlarged more than 2.2× on the cards; in the ga
 the zoom (`FRAMING` in `config.py`), so very small photos are framed a little wider instead of looking blurred.
 
 **Photo types:** JPEG, PNG, WEBP, HEIC/HEIF (pillow-heif), AVIF, GIF (first frame), BMP, TIFF; 16-bit, CMYK and
-transparent images are converted to 8-bit RGB on white.
+fully opaque PNGs are converted to 8-bit RGB as before. A **see-through** photo (✎ Background → Transparent in the app: a PNG
+`<role>.png` with alpha) stays RGBA: the card's own design shows behind the person (photo frames, family / sibling / job
+cards) and in the gallery the slide background shows behind it; face framing still runs on the photo flattened on white.
 
 **Gujarati conjuncts:** Akhand's half-શ looks like ર, so શ્ + consonant clusters (શ્વ, શ્ચ, શ્ન, શ્મ …, not શ્ર) are
 drawn with Anek Gujarati at the same letter height (`GU_FALLBACK` in `vcards/text.py`).

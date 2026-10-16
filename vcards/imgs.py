@@ -79,7 +79,9 @@ _ROTATE = {90: Image.Transpose.ROTATE_270, 180: Image.Transpose.ROTATE_180, 270:
 @lru_cache(maxsize=64)
 def _load_file(path: Path) -> Image.Image:
     """Any photo the team uploads: JPEG, PNG, WEBP, HEIC/HEIF (pillow-heif), AVIF, GIF (first frame), BMP, TIFF ...
-    16-bit / CMYK / transparent images are brought to plain 8-bit RGB on white."""
+    16-bit / CMYK images are brought to plain 8-bit RGB. A see-through photo (some alpha < 255, e.g. "Transparent" in the
+    app's photo editor) stays RGBA, so the slide's own design shows behind the person; one whose alpha is fully opaque is
+    flattened on white exactly as before."""
     im = Image.open(path)
     im.seek(0)                                   # animated GIF / multi-page TIFF: the first picture
     im = ImageOps.exif_transpose(im)
@@ -89,6 +91,8 @@ def _load_file(path: Path) -> Image.Image:
         im = im.convert("RGBA")
     if im.mode in ("RGBA", "LA", "P"):
         im = im.convert("RGBA")
+        if im.getchannel("A").getextrema()[0] < 255:
+            return im
         bg = Image.new("RGBA", im.size, (255, 255, 255, 255))
         im = Image.alpha_composite(bg, im)
     return im.convert("RGB")
@@ -96,7 +100,8 @@ def _load_file(path: Path) -> Image.Image:
 
 @lru_cache(maxsize=64)
 def load(path: Path, rotate: int = 0, trim: tuple | None = None) -> Image.Image:
-    """The photo upright (EXIF), then rotated clockwise and trimmed as set in the app's photo editor."""
+    """The photo upright (EXIF), then rotated clockwise and trimmed as set in the app's photo editor (RGB, or RGBA for a
+    see-through photo: every user pastes it with its alpha, see paste_photo / video.Gallery)."""
     im = _load_file(path)
     if rotate:
         im = im.transpose(_ROTATE[rotate])
@@ -105,6 +110,13 @@ def load(path: Path, rotate: int = 0, trim: tuple | None = None) -> Image.Image:
         box = (round(trim[0] * w), round(trim[1] * h), round(trim[2] * w), round(trim[3] * h))
         im = im.crop(box)
     return im
+
+
+def opaque(im: Image.Image, color=(255, 255, 255)) -> Image.Image:
+    """RGB: a see-through image flattened on `color` (white = what every photo looked like before), others unchanged."""
+    if im.mode != "RGBA":
+        return im
+    return Image.alpha_composite(Image.new("RGBA", im.size, color + (255,)), im).convert("RGB")
 
 
 def _dnn(img):
@@ -119,7 +131,7 @@ def faces(path: Path, rotate: int = 0, trim: tuple | None = None) -> tuple:
     along the long side (small faces in tall photos) + the whole image; Haar cascade fallback; background faces dropped."""
     if cv2 is None:
         return ()
-    im = load(path, rotate, trim)
+    im = opaque(load(path, rotate, trim))          # the face finder needs RGB: a see-through photo on white, as before
     k = min(1.0, 1200 / max(im.size))
     small = im.resize((max(1, int(im.width * k)), max(1, int(im.height * k))))
     bgr = cv2.cvtColor(np.asarray(small), cv2.COLOR_RGB2BGR)
@@ -266,7 +278,7 @@ def looks_like_logo(photo: "Photo") -> bool:
     and a few flat colours. Real photos have busy edges (measured: edges plain <= 0.32, logos >= 0.6)."""
     if faces(*photo.key):
         return False
-    im = photo.load().convert("RGB").resize((64, 64))
+    im = opaque(photo.load()).convert("RGB").resize((64, 64))
     b = im.tobytes()
     px = [tuple(b[i:i + 3]) for i in range(0, len(b), 3)]
     border = [px[y * 64 + x] for x in range(64) for y in (0, 63)] + [px[y * 64 + x] for y in range(64) for x in (0, 63)]
@@ -333,6 +345,8 @@ def fill_circle(canvas: Image.Image, box, color):
 
 def apply_privacy(im: Image.Image, mode: str) -> Image.Image:
     if mode == "blur":
+        if im.mode == "RGBA":                   # see-through: blur colour and alpha together (no dark fringe)
+            return im.convert("RGBa").filter(ImageFilter.GaussianBlur(radius=max(im.size) / 14)).convert("RGBA")
         return im.filter(ImageFilter.GaussianBlur(radius=max(im.size) / 14))
     if mode == "hide":
         out = Image.new("RGB", im.size, BROWN)
@@ -346,7 +360,11 @@ def paste_photo(canvas: Image.Image, photo: Photo, box, r: float, privacy: str =
     x0, y0, x1, y1 = [int(round(v)) for v in box]
     w, h = x1 - x0, y1 - y0
     im = apply_privacy(cover(photo, w, h), privacy)
-    canvas.paste(im, (x0, y0), rrect_mask(w, h, r))
+    m = rrect_mask(w, h, r)
+    if im.mode == "RGBA":                       # see-through photo: the card's own design shows behind the person
+        m = ImageChops.multiply(m, im.getchannel("A"))
+        im = im.convert("RGB")
+    canvas.paste(im, (x0, y0), m)
 
 
 @lru_cache(maxsize=1)
