@@ -488,12 +488,9 @@ def no_photo(s: dict) -> bool:
 
 
 def sibling_list_parts(s: dict) -> tuple:
-    """(name, '(<place>)'), a '(…)' typed after the name, or '(<occupation / education>)' when no place is filled; '' = nothing."""
+    """(name, '(<place>)'), or '(<occupation / education>)' when no place is filled (CT, 15 Oct 2026); '' = nothing."""
     name = str(s.get("display_name", "")).strip()
     extra = str(s.get("place") or "").strip()
-    m = re.match(r"^(.*\S)\s*(\([^()]+\))$", name)
-    if m and not extra:                  # place typed in brackets after the name (CT, 16 Oct 2026): its own line too
-        name, extra = m.group(1), m.group(2)
     if not extra:
         extra = ", ".join(ln for x in s.get("details", []) for ln in _detail_segments(x))
     if extra and not (extra.startswith("(") and extra.endswith(")")):

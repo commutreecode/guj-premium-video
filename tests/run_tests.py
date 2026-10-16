@@ -216,9 +216,6 @@ def main():
         return n
     from PIL import ImageColor
     acc_b = ImageColor.getrgb(ctx_b.accent)
-    check("siblings text slide: a (place) typed after the name goes on its own line like the place field",
-          C.sibling_list_parts({"display_name": "સંગીતા હંસરાજ નિસર (ફોર્ટ)", "details": []}) == ("સંગીતા હંસરાજ નિસર", "(ફોર્ટ)")
-          and C.sibling_list_parts({"display_name": "સંગીતા નિસર (ફોર્ટ)", "place": "મલાડ", "details": []}) == ("સંગીતા નિસર (ફોર્ટ)", "(મલાડ)"))
     check("siblings text slide = team PSD (16 Oct 2026): title light brown, name + (place) lines in the theme colour",
           colour_rows(im3, ImageColor.getrgb(C.SIB_LIST_TITLE)) == 1 and colour_rows(im3, acc_b) == 6,
           f"title rows {colour_rows(im3, ImageColor.getrgb(C.SIB_LIST_TITLE))}, name rows {colour_rows(im3, acc_b)}")
