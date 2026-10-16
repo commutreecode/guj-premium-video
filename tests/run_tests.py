@@ -403,6 +403,30 @@ def main():
           isb(j2, 1165) and isb(j2, 1468) and not isb(j2, 1150) and not isb(j2, 1490)
           and not any(max(abs(a - b) for a, b in zip(j2.getpixel((600, y)), ImageColor.getrgb(BROWN))) < 6 for y in (1126, 1140)))
 
+    # parent band text centred (CT, 16 Oct 2026: 4 plain occupation lines touched the bottom of the band, 2 sat high):
+    # the space above the letters equals the space below them, for 2-5 lines and for Type / Name / Work rows
+    def text_gaps(im, top=1161, bottom=1470):
+        rows = [y for y in range(top, bottom + 1) if any(min(im.getpixel((x, y))) > 235 for x in range(40, 1160, 2))]
+        return rows[0] - top, bottom - rows[-1]
+    occs = {2: ["Retired", "(Ex. Manager, Sample Bank)"],
+            4: ["Business", "Sample Arts Fashion Pvt Ltd., Jogeshwari East", "Brand Name: SAMPLE CLASS",
+                "(Manufacturer of Formal Shirts)"],
+            5: ["Business", "Sample Traders, Ghatkopar", "Brand Name: XYZ", "(Wholesale of Textiles)", "Partner: ABC Pvt Ltd"]}
+    for n, occ in occs.items():
+        po = cards.single_parent(cards.Ctx("boy", ROOT / "samples", "clear"), "father", {"name": "x", "occupation": occ},
+                                 "photos/couple.jpg").convert("RGB")
+        g = text_gaps(po)
+        check(f"parent band, {n} occupation lines: text centred, never touching the band edges",
+              min(g) >= 12 and abs(g[0] - g[1]) <= 4, str(g))
+    jb = pj([{"type": "Business", "name": "Sample Arts Fashion Pvt Ltd., Jogeshwari East",
+              "desc": "Brand Name: SAMPLE CLASS (Manufacturer of Formal Shirts)"}])
+    g = text_gaps(jb)
+    check("parent Type / Name / Work band: text centred", min(g) >= 12 and abs(g[0] - g[1]) <= 4, str(g))
+    check("long work text: '(…)' on its own line, never cut in the middle",
+          cards._bracket_lines("Brand Name: SAMPLE CLASS (Manufacturer of Formal Shirts)", cards.Style(size=60), 1120)
+          == ["Brand Name: SAMPLE CLASS", "(Manufacturer of Formal Shirts)"]
+          and cards._bracket_lines("(Only a bracket)", cards.Style(size=60), 1120) is None)
+
     # dada-dadi / nana-nani / parents without photos: big dark-brown name in the middle, place in the band (CT, 13 Oct 2026)
     nb = ImageColor.getrgb(cards.NAME_BROWN)
     fctx = cards.Ctx("boy", ROOT / "samples", "clear")

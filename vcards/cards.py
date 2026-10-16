@@ -231,6 +231,18 @@ def parent_jobs(d_: dict) -> list:
     return out
 
 
+def _bracket_lines(text: str, st: Style, max_w: float):
+    """'Brand Name: X (Manufacturer of Y)' -> ['Brand Name: X', '(Manufacturer of Y)'] when both parts fit one line
+    (CT, 16 Oct 2026: a bracket part is its own line, never cut in the middle); None when there is no such split."""
+    i = text.find(" (")
+    if i <= 0:
+        return None
+    a, b = text[:i].strip(), text[i:].strip()
+    if a and b and max(measure(a, st.scaled(0.7)), measure(b, st.scaled(0.7))) <= max_w:
+        return [a, b]
+    return None
+
+
 def _jobs_band(jobs: list, bottom: int = 1471, top: int = 1161, edu: str = ""):
     """Brown band for a parent's jobs, never taller than the approved band (1161..1471). Per job (CT, 14 Oct 2026):
     the type BIGGEST, the name / company smaller, the work smallest. A name that would have to shrink a lot to fit one
@@ -254,8 +266,8 @@ def _jobs_band(jobs: list, bottom: int = 1471, top: int = 1161, edu: str = ""):
                 st = Style(gu="akhand_xb", lat="poppins_sb", size=SZ[role] * k, color=WHITE)
                 if measure(j[role], st.scaled(0.86)) <= 1120 or role == "type":
                     ls = [j[role]]                        # one line (fit() shrinks it at most to 86 %)
-                else:                                     # name / work too long: 2 balanced lines
-                    ls = wrap_balanced(j[role], st, 1120)[:2]
+                else:                                     # name / work too long: 2 lines, "(…)" on its own line
+                    ls = _bracket_lines(j[role], st, 1120) or wrap_balanced(j[role], st, 1120)[:2]
                 for ln in ls:
                     rows.append((ln, st, st.size * 1.16, 14 * k if (first and (i or edu)) else 0))
                     first = False
@@ -333,12 +345,22 @@ def single_parent(ctx: Ctx, rel: str, d_: dict, fallback_photo=None) -> Image.Im
         band(im, 1161, 1471, BROWN)
         sizes = [62.5] + [70.8] * (len(occ) - 1)
         pitch = 91.7 if len(occ) <= 3 else 290 / len(occ)
-        base = 1241 if len(occ) <= 3 else 1161 + 45 + pitch * 0.5
+        sts = [fit(line, Style(gu="akhand_xb", lat="poppins_sb", size=sizes[i] * (1 if len(occ) <= 3 else 0.85),
+                               color=WHITE), 1120) for i, line in enumerate(occ)]
+        # the letters are centred in the band (CT, 16 Oct 2026: 4 lines touched the bottom edge, 2 lines sat high);
+        # 3 lines keep the approved place (it was already centred)
+        base = _centred_base(occ, sts, pitch, 1161, 1471)
         for i, line in enumerate(occ):
-            st = Style(gu="akhand_xb", lat="poppins_sb", size=sizes[i] * (1 if len(occ) <= 3 else 0.85),
-                       color=WHITE)
-            draw_line(d, line, fit(line, st, 1120), 600, base + i * pitch)
+            draw_line(d, line, sts[i], 600, base + i * pitch)
     return im
+
+
+def _centred_base(lines, styles, pitch, top, bottom):
+    """First baseline that puts the drawn letters of the lines (one every `pitch` px) in the middle of top..bottom,
+    so the empty space above the text equals the space below it."""
+    hi = min(i * pitch + ink(ln, st)[0] for i, (ln, st) in enumerate(zip(lines, styles)))
+    lo = max(i * pitch + ink(ln, st)[1] for i, (ln, st) in enumerate(zip(lines, styles)))
+    return (top + bottom) / 2 - (hi + lo) / 2
 
 
 def sibling(ctx: Ctx, s: dict) -> Image.Image:

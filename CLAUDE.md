@@ -40,6 +40,10 @@ split over the narrated cards only. Narration rule change → bump `NARRATION_ST
 The team PSDs (15 Oct 2026) are the reference for card looks: see "Team PSDs" in README.md. Fonts used: Akhand Gujarati,
 Anek Gujarati, Barlow / Barlow Condensed (incl. BarlowCondensed-BoldItalic.ttf, OFL, added 15 Oct 2026), Poppins.
 
+Text in a brown band is centred by its letters (`_centred_base`: same space above and below), never by fixed
+baselines; a long name / work in a parent band splits before " (" so a bracket part is its own line
+(`_bracket_lines`). Self-test: "parent band … text centred" (CT, 16 Oct 2026).
+
 ## Never silently degrade
 If a feature can't work (face detector, RAQM), the render must stop with an error. Run `python3 tests/run_tests.py`
 after any change; keep `requirements.txt` upper bounds until a new major version passes the tests.
