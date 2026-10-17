@@ -37,8 +37,11 @@ running with `--voice`, so the voice is split on the right cards.
 siblings with a photo keep their card + narration (CT, 15 Oct 2026). A silent card in the middle is fine: the voice is
 split over the narrated cards only. Narration rule change → bump `NARRATION_STYLE` in the automation's `auto.py`.
 
-The team PSDs (15 Oct 2026) are the reference for card looks: see "Team PSDs" in README.md. Fonts used: Akhand Gujarati,
-Anek Gujarati, Barlow / Barlow Condensed (incl. BarlowCondensed-BoldItalic.ttf, OFL, added 15 Oct 2026), Poppins.
+The team PSDs (15 + 17 Oct 2026) are the reference for card looks: see "Team PSDs" and "Team PSDs, second round" in
+README.md (17 Oct: hero, mother / father card, single sibling, education + occupation card and a single achievement were
+kept as they are on purpose; the team sends exact images for the last three). Fonts used: Akhand Gujarati,
+Anek Gujarati (incl. AnekGujaratiSemiCondensed-Bold.ttf for Income / Property, OFL, added 17 Oct 2026), Barlow / Barlow
+Condensed (incl. BarlowCondensed-BoldItalic.ttf, OFL, added 15 Oct 2026), Poppins.
 
 Text in a brown band is centred by its letters (`_centred_base`: same space above and below), never by fixed
 baselines; a long name / work in a parent band splits before " (" so a bracket part is its own line

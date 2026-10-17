@@ -97,6 +97,16 @@ as "Check voice: …").
   in brackets small). `edu_work_one: true` = education + occupation on one card (`edu_work`, one voice block, only when
   short); `property_card: true` = Income / Property on its own card even with one line; `mother/father.education` =
   "(M.Com + LLB)" above the type in the band; same village and city -> "(બોટાદ)".
+- **Team PSDs, second round** (CT + team, 17 Oct 2026, 73 more PSDs; review page with today / after cards): parents card
+  with a sect = name / (village, city) / (sect) all inside the brown band; education = Anek Gujarati Condensed, big; ONE
+  degree: candidate photo on the right, no bullet, up to 3 lines; 2+ degrees: no photo, full width, round bullets; girl:
+  title pink, "EDUCATION / અભ્યાસ" brown; girl job: "at Company" crimson #A71043; "as a / as an" split like "at";
+  2-4 job roles (a new line that is not in brackets and does not start with at / as a) = a bullet per role, no photo, logo
+  under the first role; 2+ businesses: a row's Type is its own bulleted line, the "BUSINESS" heading only when no row has
+  a Type; Past Experience = title "Past Experience:" only, 1 item in the job style with the logo below + photo, 2-3 items
+  bullets with a logo each, no photo; 2-3 achievements = title "Achievements:" only, round bullets; Income / Property
+  text in Anek Gujarati SemiCondensed Bold, bigger. Unchanged on purpose: hero, the mother / father card, one sibling
+  without a photo, the education + occupation card and a single achievement (team images pending). Spoken text unchanged.
 - **Business heading** (CT, 15 Oct 2026): `work.heading` (the team's own occupation type, e.g. "Businesses in Kolhapur")
   with 2+ businesses is drawn once above the list (no bullet) and said first in the occupation sentence; ignored for one business.
 - **2 or more siblings without a photo** (CT, 15 Oct 2026): they are left out of the narration and shown together on

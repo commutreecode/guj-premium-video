@@ -16,6 +16,7 @@ FONTS = {
     "arista": _F / "zarista/_Z__ARISTA_TRIAL.TTF",
     "anek_sb": _F / "anek-gujarati/AnekGujaratiCondensed-SemiBold.ttf",
     "anek_b": _F / "anek-gujarati/AnekGujaratiCondensed-Bold.ttf",
+    "anek_semi_b": _F / "anek-gujarati/AnekGujaratiSemiCondensed-Bold.ttf",   # Income / Property text (team PSDs)
     "barlow_m": _F / "barlow/Barlow-Medium.ttf",
     "barlow_sb": _F / "barlow/Barlow-SemiBold.ttf",
     "barlow_b": _F / "barlow/Barlow-Bold.ttf",

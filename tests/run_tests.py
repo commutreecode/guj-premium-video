@@ -261,7 +261,25 @@ def main():
     check("job card: white logo background made transparent", sum(1 for c in pix((40, 560, 800, 1440)) if min(c) >= 250) < 200)
     job4 = dict(job, bullets=["A at B, C", "D", "E", "F"])
     jc = cards.work(ctx, job4, "x", "samples/photos/g2.jpg").convert("RGB")
-    check("job card with 4 points: logo above the list", green((40, 560, 800, 780)))
+    bg = cards.canvas(ctx)
+    check("job with 2-4 roles (team PSDs 17 Oct): no candidate photo, logo under the first role",
+          ImageChops.difference(jc.crop((900, 600, 1190, 1300)), bg.crop((900, 600, 1190, 1300))).getbbox() is None
+          and green((40, 600, 800, 1300)))
+    check("job roles: a line in brackets / starting with at, as a stays with its role",
+          cards.job_roles(["Team Leader", "at X, Pune", "(Simulation)", "Freelance Designer", "as a Consultant"])
+          == [["Team Leader", "at X, Pune", "(Simulation)"], ["Freelance Designer", "as a Consultant"]])
+    check("education + occupation slide: 'as a' NOT split there (team image pending)",
+          cards.job_parts(["Working as an Accountant"], as_split=False) == ("Working as an Accountant", "", []))
+    a1 = cards.awards_card(ctx, ["Gold medal"], "x").convert("RGB")
+    a2 = cards.awards_card(ctx, ["Gold medal", "Rank 2"], "x").convert("RGB")
+    check("achievements: 2+ = new title (team PSDs), ONE = unchanged (team image pending)",
+          ImageChops.difference(a1.crop((0, 150, 1200, 560)), a2.crop((0, 150, 1200, 560))).getbbox() is not None)
+    check("job parts: 'as a / as an' split like 'at'",
+          cards.job_parts(["Working as an Accountant, Rajkot"]) == ("Working", "as an Accountant, Rajkot", [])
+          and cards.job_parts(["Manager at ABC, Pune"]) == ("Manager", "at ABC, Pune", []))
+    jg = cards.work(cards.Ctx("girl", ROOT / "samples"), {"style": "bullets", "bullets": ["Analyst at Sample Bank"]}, "x").convert("RGB")
+    gp = list(zip(*[iter(jg.crop((40, 560, 800, 1300)).tobytes())] * 3))
+    check("girl job: 'at Company' in crimson", any(abs(r - 167) < 6 and abs(g - 16) < 6 and abs(b - 67) < 6 for r, g, b in gp))
 
     # a logo uploaded in the occupation PHOTO box (team habit): drawn as the logo, a person photo on the right
     jc = cards.work(ctx, {"style": "bullets", "bullets": job["bullets"], "photo": {"src": "out/_logo.jpg", "trim": [0, 0, 0.5, 1]}},
@@ -281,12 +299,14 @@ def main():
     check("past experience: up to 3 items", len(cards.past_items({"past": past})) == 3 and cards.past_items({"past": "X"}) == [{"text": "X", "logo": None}])
     jc = cards.past_experience(ctx, cards.past_items({"past": past}), "x").convert("RGB")
     check("past experience card: logo drawn", green((0, 560, 1200, 1440)))
-    jcp = cards.past_experience(ctx, cards.past_items({"past": past}), "x", "samples/photos/g2.jpg").convert("RGB")
-    jw = cards.work(ctx, job, "x", "samples/photos/g2.jpg").convert("RGB")
+    jcp = cards.past_experience(ctx, cards.past_items({"past": past[:1]}), "x", "samples/photos/g2.jpg").convert("RGB")
     jc = jcp
-    check("past experience card with a candidate photo: photo on the right like the occupation card, logo + text left",
-          ImageChops.difference(jcp.crop((830, 560, 1190, 1300)), jw.crop((830, 560, 1190, 1300))).getbbox() is None
-          and green((0, 560, 800, 1440)))
+    check("past experience, 1 item (team PSDs 17 Oct): photo on the right, logo below the text on the left",
+          ImageChops.difference(jcp.crop((900, 600, 1190, 1200)), bg.crop((900, 600, 1190, 1200))).getbbox() is not None
+          and green((0, 700, 800, 1440)))
+    jc3 = cards.past_experience(ctx, cards.past_items({"past": past}), "x", "samples/photos/g2.jpg").convert("RGB")
+    check("past experience, 2-3 items: no candidate photo (bullets, full width)",
+          ImageChops.difference(jc3.crop((1000, 600, 1190, 1300)), bg.crop((1000, 600, 1190, 1300))).getbbox() is None)
     jp = cards.work(ctx, dict(job, past=past), "x", "samples/photos/g2.jpg").convert("RGB")
     j0 = cards.work(ctx, job, "x", "samples/photos/g2.jpg").convert("RGB")
     check("past experience: not on the occupation card", ImageChops.difference(jp, j0).getbbox() is None)
@@ -296,6 +316,26 @@ def main():
     ids = [x.id for x in sc]
     check("past experience: card right after the occupation card, no voice",
           "past" in ids and ids.index("past") == ids.index("work") + 1 and not sc[ids.index("past")].text)
+
+    # team PSDs (17 Oct 2026): education photo only with ONE degree; sect inside the parents band; business heading
+    e1 = cards.education(ctx, [{"degree": "B Arch", "institute": "Sample College"}], "x", "samples/photos/g2.jpg").convert("RGB")
+    e2 = cards.education(ctx, [{"degree": "B.Com"}, {"degree": "M.Com"}], "x", "samples/photos/g2.jpg").convert("RGB")
+    check("education: photo with ONE degree, no photo with 2+ degrees",
+          ImageChops.difference(e1.crop((900, 600, 1190, 1250)), bg.crop((900, 600, 1190, 1250))).getbbox() is not None
+          and ImageChops.difference(e2.crop((1000, 600, 1190, 1250)), bg.crop((1000, 600, 1190, 1250))).getbbox() is None)
+    par = {"display_name": "માતા નામ", "village": "માંડવી", "city": "ઘાટકોપર", "sect": "દેરાવાસી જૈન", "photos": ["samples/photos/mother.jpg"]}
+    pc = cards.family_pair(ctx, "parents", par).convert("RGB")
+    check("parents: the sect is inside the brown band (nothing under it)",
+          ImageChops.difference(pc.crop((0, 1474, 1200, 1500)), bg.crop((0, 1474, 1200, 1500))).getbbox() is None)
+    bz = [{"type": "Family Business", "name": "A"}, {"type": "", "name": "B"}]
+    check("2+ businesses: no 'BUSINESS' heading when a row has a Type; kept when none has; own heading kept",
+          cards.list_heading({}, bz) == "" and cards.list_heading({}, [{"name": "A"}, {"name": "B"}]) == "Business"
+          and cards.list_heading({"heading": "Businesses in X", "businesses": bz}, bz) == "Businesses in X")
+    from vcards.config import FONTS
+    from fontTools.ttLib import TTFont
+    cm = TTFont(str(FONTS["anek_semi_b"])).getBestCmap()
+    check("Income / Property font: Anek Gujarati SemiCondensed Bold with Latin, Gujarati and the rupee sign",
+          all(ord(c) in cm for c in "Ab9(₹ક"))
 
     # one Income / Property line: shown in the gallery strip (no own card); a long hobby text scrolls to its end
     pp["property"] = ["Residence 2BHK at Sample Nagar"]
