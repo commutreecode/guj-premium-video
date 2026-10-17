@@ -38,8 +38,8 @@ siblings with a photo keep their card + narration (CT, 15 Oct 2026). A silent ca
 split over the narrated cards only. Narration rule change → bump `NARRATION_STYLE` in the automation's `auto.py`.
 
 The team PSDs (15 + 17 Oct 2026) are the reference for card looks: see "Team PSDs" and "Team PSDs, second round" in
-README.md (17 Oct: hero, mother / father card, single sibling, education + occupation card and a single achievement were
-kept as they are on purpose; the team sends exact images for the last three). Fonts used: Akhand Gujarati,
+README.md (17 Oct: hero and the single sibling card kept as they are on purpose; mother / father card with job rows,
+education + occupation card and a single achievement follow the team's exact images, see "Team's exact images"). Fonts used: Akhand Gujarati,
 Anek Gujarati (incl. AnekGujaratiSemiCondensed-Bold.ttf for Income / Property, OFL, added 17 Oct 2026), Barlow / Barlow
 Condensed (incl. BarlowCondensed-BoldItalic.ttf, OFL, added 15 Oct 2026), Poppins.
 

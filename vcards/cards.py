@@ -259,45 +259,49 @@ def _bracket_lines(text: str, st: Style, max_w: float):
     return None
 
 
-def _jobs_band(jobs: list, bottom: int = 1471, top: int = 1161, edu: str = ""):
-    """Brown band for a parent's jobs, never taller than the approved band (1161..1471). Per job (CT, 14 Oct 2026):
-    the type BIGGEST, the name / company smaller, the work smallest. A name that would have to shrink a lot to fit one
-    line goes on 2 lines instead; everything then shrinks together until it fits. Returns (band top, draw function)."""
-    SZ = {"type": 80.0, "name": 66.0, "desc": 60.0}
-    n_lines = sum(1 for j in jobs for r in ("type", "name", "desc") if j[r]) + (1 if edu else 0)
-    pad = 30 if n_lines <= 3 else 18
-    room = bottom - top - 2 * pad
-    k = 1.0
+def _jobs_band(jobs: list, bottom: int = 1474, top: int = 1145, edu: str = ""):
+    """Brown band for a parent's jobs = the team's exact image (Harit, CT 17 Oct 2026): band 1145..1474; per job the type
+    and the name / company the same size, the work smaller and always in brackets; no "+" line, a gap between jobs; every
+    line fits the width on its own (a long name / work splits before " (" or wraps to 2 lines); everything shrinks
+    together until it fits, centred by its letters. Returns (band top, draw function)."""
+    jobs = [dict(j, desc=paren(j["desc"])) for j in jobs]
+    MAXW, PAD = 1130, 16
+    S = 64.0                                             # 3 lines: up to 64 px; the team image (5 lines): ~45 px
     while True:
-        rows = []                                        # (text, style, pitch, gap_before)
+        rows = []                                        # (text, style, offset from the first baseline)
+        y, last = 0.0, None
+        st_t = Style(gu="akhand_xb", lat="poppins_sb", size=S, color=WHITE)
+        st_w = Style(gu="akhand_xb", lat="poppins_sb", size=S * 0.85, color=WHITE)
         if edu:                                          # parent's education first, e.g. "(M.Com + LLB)" (team PSDs)
-            st = Style(gu="akhand_xb", lat="poppins_sb", size=SZ["desc"] * k, color=WHITE)
-            for ln in ([edu] if measure(edu, st.scaled(0.86)) <= 1120 else wrap_balanced(edu, st, 1120)[:2]):
-                rows.append((ln, st, st.size * 1.16, 0))
+            for ln in ([edu] if measure(edu, st_w.scaled(0.86)) <= MAXW else wrap_balanced(edu, st_w, MAXW)[:2]):
+                rows.append((ln, st_w, y)); y += S * 1.15
+            last = "edu"
         for i, j in enumerate(jobs):
-            first = True
+            if i:
+                y += S * (1.72 - 1.15)                  # a gap between jobs (team image: 77 px vs 52 px in a job)
             for role in ("type", "name", "desc"):
                 if not j[role]:
                     continue
-                st = Style(gu="akhand_xb", lat="poppins_sb", size=SZ[role] * k, color=WHITE)
-                if measure(j[role], st.scaled(0.86)) <= 1120 or role == "type":
-                    ls = [j[role]]                        # one line (fit() shrinks it at most to 86 %)
-                else:                                     # name / work too long: 2 lines, "(…)" on its own line
-                    ls = _bracket_lines(j[role], st, 1120) or wrap_balanced(j[role], st, 1120)[:2]
+                st = st_w if role == "desc" else st_t
+                if measure(j[role], st.scaled(0.86)) <= MAXW or role == "type":
+                    ls = [j[role]]
+                else:
+                    ls = _bracket_lines(j[role], st, MAXW) or wrap_balanced(j[role], st, MAXW)[:2]
                 for ln in ls:
-                    rows.append((ln, st, st.size * 1.16, 14 * k if (first and (i or edu)) else 0))
-                    first = False
-        total = sum(p + g for _, _, p, g in rows)
-        if total <= room or k <= 0.5:
+                    if role == "desc" and rows:
+                        y -= S * 0.05                    # the work line sits a little closer (team image: 50 vs 52 px)
+                    rows.append((ln, fit(ln, st, MAXW, 0.7), y)); y += S * 1.15
+        hi = min(o + ink(t, st)[0] for t, st, o in rows)
+        lo = max(o + ink(t, st)[1] for t, st, o in rows)
+        if lo - hi <= bottom - top - 2 * PAD or S <= 28:
             break
-        k -= 0.03
+        S -= 0.5
+    base = (top + bottom) / 2 - (hi + lo) / 2
 
     def draw(im, d):
         band(im, top, bottom, BROWN)
-        y = top + (bottom - top - total) / 2
-        for ln, st, p, g in rows:
-            y += g + p
-            draw_line(d, ln, fit(ln, st, 1120, 0.7), 600, y - p * 0.24)
+        for t, st, o in rows:
+            draw_line(d, t, st, 600, base + o)
     return top, draw
 
 
@@ -319,11 +323,11 @@ def single_parent(ctx: Ctx, rel: str, d_: dict, fallback_photo=None) -> Image.Im
     elif edu:
         occ = [edu] + list(occ)
     if ph and jobs and (len(occ) > 1 or edu):
-        # Type / Name / Work rows from the app (CT, 13 Oct 2026): type small, name larger, work medium; the band
-        # grows upwards for 2+ jobs and the photo always ends 36 px above it (never touching the band)
+        # Type / Name / Work rows from the app = the team's exact image (Harit, 17 Oct 2026): band 1145..1474, the photo
+        # 515..1125 (20 px above the band)
         top, draw_band = _jobs_band(jobs, edu=edu)
-        y1 = top - 36
-        box = (220, 559, 980, y1) if _aspect(ph) >= 0.9 else (359, 559, 841, y1)
+        y1 = top - 20
+        box = (220, 515, 980, y1) if _aspect(ph) >= 0.9 else (361, 515, 839, y1)
         imgs.paste_photo(im, ph, box, 88)
         draw_band(im, d)
         return im
@@ -703,9 +707,15 @@ def edu_work_fits(p: dict) -> bool:
     return len(business_items(w)) == 1 if w.get("style", "business") != "bullets" else 0 < len(w.get("bullets") or []) <= 2
 
 
+EW_BULLET = "#94694A"     # round brown bullets on the education + occupation slide (team image, 17 Oct 2026)
+
+
 def edu_work(ctx: Ctx, p: dict, first: str) -> Image.Image:
-    """Education and occupation on ONE card, full width (no photo): "<name> નુ એજ્યુકેશન:" + degree bullets (college
-    small, brown), then "<name> નુ ઓક્યુપેશન:" + one bullet (designation / business label, name, work) + logo."""
+    """Education and occupation on ONE card = the team's exact image (Binjal, CT 17 Oct 2026): "<name> નુ એજ્યુકેશન:"
+    (girl pink / boy brown), per degree a round brown bullet, the degree big (Anek Gujarati Condensed), the college small
+    under it; "<name> નુ ઓક્યુપેશન:", one bullet: business = TYPE (black) / name / (work), job = designation / "at" or
+    "as a" part small; the logo below. Measured on the image: baseline steps 154 / 112 / 262 / 156 / 128 / 121, logo
+    52 px under the last line; the block is centred between 150 and 1484 (the image fills it exactly)."""
     im = canvas(ctx)
     d = ImageDraw.Draw(im)
     w = p.get("work") or {}
@@ -714,61 +724,66 @@ def edu_work(ctx: Ctx, p: dict, first: str) -> Image.Image:
         if not imgs.faces(*p0.key):
             w = dict(w, photo=None, _logo_photo=p0)
     edu = [e for e in (p.get("education") or []) if e.get("degree")]
+    girl = ctx.theme == "girl"
+    c_title = ctx.accent if girl else BROWN
+    c_big, c_small = ("#46300D", "#9A6E2B") if girl else ("#010101", INSTITUTE)
+    c_type = "#090704" if girl else "#010101"
     if w.get("style", "business") == "bullets":
-        desig, comp, extra = job_parts(w.get("bullets") or [], as_split=False)   # this slide: team image pending
-        occ = [(desig, "deg"), (comp, "name")] + [(e, "work") for e in extra]
+        desig, comp, extra = job_parts(w.get("bullets") or [])
+        occ = [(desig, "big", c_big)] + ([(comp, "small", c_small)] if comp else []) + [(e, "small", c_small) for e in extra]
     else:
         b = business_items(w)[0]
         lab = " ".join(str(b.get("type") or w.get("label") or "Business").replace("_", " ").split())
-        occ = [(lab, "deg"), (b.get("name"), "name"), (paren(b.get("desc")), "work")]
-    X_B, X_T, R = 70, 140, 1140
+        occ = [(lab, "big", c_type), (b.get("name"), "big", c_big)] + ([(paren(b.get("desc")), "small", c_small)] if b.get("desc") else [])
+    X_B, X_E, X_O, R = 68, 135, 125, 1150
     k = 1.0
     while True:
-        rows = []                                    # (kind, text, style, pitch, gap)
-        tst = Style(gu="akhand_xb", lat="anek_sb", size=112 * k, color=BROWN)
-        dst = Style(gu="akhand_xb", lat="barlow_xb", size=92 * k, color=BLACK)
-        ist = Style(gu="akhand_xb", lat="barlow_m", size=60 * k, color=INSTITUTE)
-        nst = Style(gu="akhand_xb", lat="barlowc_bi", size=84 * k, color=OCC_NAME)
-        wst = Style(gu="akhand_xb", lat="barlowc_bi", size=64 * k, color=OCC_WORK)
-        rows.append(("title", f"{first} નુ એજ્યુકેશન:", tst, tst.size * 1.05, 0))
-        for i, e in enumerate(edu):
+        T = Style(gu="akhand_xb", lat="anek_sb", size=116.4 * k, color=c_title)
+        D = Style(gu="akhand_xb", lat="anek_sb", size=125 * k)
+        I = Style(gu="akhand_xb", lat="anek_sb", size=95.8 * k)
+        rows, y, prev = [], 0.0, None                       # (kind, text, style, colour, x, baseline offset)
+        rows.append(("title", f"{first} નુ એજ્યુકેશન:", T, c_title, 600, y)); prev = "title"
+        for e in edu:
             big, small = deg_lines(e)
-            g = 34 * k if i == 0 else 40 * k
-            for j, ln in enumerate(ln for sg in big for ln in wrap_balanced(sg, dst, R - X_T)):
-                rows.append(("bullet" if j == 0 else "text", ln, dst, dst.size * 1.08, g)); g = 0
-            it = paren(e.get("institute"))
-            for ln in [ln for sg in small + ([it] if it else []) for ln in wrap_balanced(sg, ist, R - X_T)]:
-                rows.append(("text", ln, ist, ist.size * 1.3, 0))
-        rows.append(("title", f"{first} નુ ઓક્યુપેશન:", tst, tst.size * 1.05, 70 * k))
-        g, first_row = 34 * k, True
-        for txt, kind in occ:
+            it = (e.get("institute") or "").strip()
+            for i, ln in enumerate(ln for sg in big for ln in wrap_balanced(sg, D, R - X_E)):
+                y += {"title": 154, "big": 128, "small": 150}[prev] * k
+                rows.append(("bullet" if i == 0 else "text", ln, D, c_big, X_E, y)); prev = "big"
+            for ln in [ln for sg in small + ([paren(it)] if it else []) for ln in wrap_balanced(sg, I, R - X_E)]:
+                y += (112 if prev == "big" else 120) * k
+                rows.append(("text", ln, I, c_small, X_E, y)); prev = "small"
+        y += 262 * k
+        rows.append(("title", f"{first} નુ ઓક્યુપેશન:", T, c_title, 600, y)); prev = "title"
+        first_row = True
+        for txt, size, col in occ:
             if not txt:
                 continue
-            st = {"deg": dst, "name": nst, "work": wst}[kind]
-            for ln in wrap_balanced(txt, st, R - X_T):
-                rows.append(("bullet" if first_row else "text", ln, st, st.size * 1.12, g)); g, first_row = 0, False
-        room = 1450 - 165
+            st = D if size == "big" else I
+            for ln in wrap_balanced(txt, st, R - X_O):
+                y += ({"title": 156, "big": 128, "small": 120} if size == "big" else {"title": 156, "big": 121, "small": 120})[prev] * k
+                rows.append(("bullet" if first_row else "text", ln, st, col, X_O, y)); prev, first_row = size, False
         lg = None
         if w.get("logo") or w.get("_logo_photo"):
-            lg = _job_logo(ctx, w, 420, int(min(170, room - sum(r[3] + r[4] for r in rows) - 30)), 200)
-        total = sum(r[3] + r[4] for r in rows) + (lg.height + 30 if lg else 0)
-        if total <= room or k <= 0.55:
+            lg = _job_logo(ctx, w, int(420 * k), int(210 * k), int(240 * k))
+        hi = ink(rows[0][1], rows[0][2])[0]
+        lo = (y + 52 * k + lg.height) if lg else max(o + ink(t, st)[1] for _, t, st, _, _, o in rows)
+        if lo - hi <= 1484 - 150 or k <= 0.55:
             break
-        k -= 0.04
-    y = 165 + max(0, (room - total) / 2)
-    for kind, txt, st, pch, g in rows:
-        y += g + pch
-        base = y - pch * 0.24
+        k -= 0.03
+    off = (150 + 1484) / 2 - (hi + lo) / 2
+    for kind, txt, st, col, x, o in rows:
+        base = off + o
+        st = replace_color(st, col)
         if kind == "title":
             draw_line(d, txt, fit(txt, st, 1100), 600, base)
             continue
         if kind == "bullet":
-            b = st.size * 0.42
-            cy = base - st.size * 0.36
-            imgs.fill_rrect(im, (X_B, cy - b / 2, X_B + b, cy + b / 2), b * 0.25, ctx.accent)
-        draw_line(d, txt, fit(txt, st, R - X_T), X_T, base, "left")
+            r = 35 * k
+            cy = base - 0.41 * 125 * k
+            imgs.fill_circle(im, (X_B, cy - r / 2, X_B + r, cy + r / 2), EW_BULLET)
+        draw_line(d, txt, fit(txt, st, R - x), x, base, "left")
     if lg:
-        _paste_logo(im, lg, X_T, "left", y + 30)
+        _paste_logo(im, lg, 130, "left", off + y + 52 * k)
     return im
 
 
@@ -809,14 +824,14 @@ def bullet_list(im, d, items, accent, shape, x_b, x_t, max_w, first_bl, size, bo
     return s
 
 
-def job_parts(items: list, as_split: bool = True):
+def job_parts(items: list):
     """Job lines as on the team PSDs -> (designation, "at company", extra lines): "Manager at ABC, Pune" is split into
     "Manager" / "at ABC, Pune"; without " at " the 2nd line is the company."""
     items = [i.strip() for i in items if i and i.strip()]
     if not items:
         return "", "", []
     # "Manager at ABC" / "Working as an Accountant, Rajkot" (team PSDs: "as a / as an" is split like "at")
-    m = re.split(r"\s+(?=(?:at|as an?)\s)" if as_split else r"\s+(?=at\s)", items[0], maxsplit=1, flags=re.I)
+    m = re.split(r"\s+(?=(?:at|as an?)\s)", items[0], maxsplit=1, flags=re.I)
     if len(m) == 2:
         return m[0], m[1], items[1:]
     return items[0], (items[1] if len(items) > 1 else ""), items[2:]
@@ -1227,6 +1242,8 @@ def single_award(p: dict):
     """The text when the profile has exactly ONE award / achievement line: shown in the gallery's white strip
     (first, before the property line and the hobbies) instead of an own card. Otherwise None."""
     a = award_items(p)
+    if p.get("award_card"):              # app tick: one achievement on its own slide (team image, CT 17 Oct 2026)
+        return None
     return a[0] if len(a) == 1 else None
 
 
@@ -1234,11 +1251,17 @@ def awards_card(ctx: Ctx, items: list, first: str) -> Image.Image:
     """Awards / achievements: own card after the occupation (and past experience) card, music only."""
     im = canvas(ctx)
     d = ImageDraw.Draw(im)
-    if len(items) == 1:                  # one achievement on its own slide: unchanged until the team's image (CT, 17 Oct)
-        title1(d, f"{first} નો પરિચય")
-        title2(d, ctx, "Awards / Achievements:", 166.7, 521, upper=True)
-        bullet_list(im, d, items, ctx.accent, "square", 86, 176, 1131, 753, 93, 1440,
-                    b_side=70, b_off=63, line_k=1.39, gap_k=1.04)
+    if len(items) == 1:
+        # ONE achievement = the team's exact image (Raj, CT 17 Oct 2026): "ACHIEVEMENTS:" (Anek Condensed 213, theme
+        # colour, boys in capitals, baseline 458), the text centred in Anek SemiCondensed Bold 122, lines 184 px apart
+        # around baseline 907, no bullet
+        draw_line(d, "Achievements:", fit("Achievements:", Style(gu="akhand_xb", lat="anek_sb", size=213, color=ctx.accent,
+                                                                  upper=ctx.theme == "boy"), 1130), 600, 458)
+        st = Style(gu="akhand_xb", lat="anek_semi_b", size=122.1, color="#46300D" if ctx.theme == "girl" else BLACK)
+        ls, st = wrap_fit(items[0], st, 1010, 4, 0.6)
+        pitch = 184 * st.size / 122.1
+        for i, ln in enumerate(ls):
+            draw_line(d, ln, st, 600, 907 - pitch * (len(ls) - 1) / 2 + i * pitch)
         return im
     # team PSDs (Henal, Vicky, 17 Oct 2026): only the title "Achievements:" (big, theme colour; boys in capitals),
     # round bullets, Anek Gujarati Condensed (girl: dark brown). ONE achievement on its own slide: team image pending.

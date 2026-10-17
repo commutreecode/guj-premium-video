@@ -268,11 +268,9 @@ def main():
     check("job roles: a line in brackets / starting with at, as a stays with its role",
           cards.job_roles(["Team Leader", "at X, Pune", "(Simulation)", "Freelance Designer", "as a Consultant"])
           == [["Team Leader", "at X, Pune", "(Simulation)"], ["Freelance Designer", "as a Consultant"]])
-    check("education + occupation slide: 'as a' NOT split there (team image pending)",
-          cards.job_parts(["Working as an Accountant"], as_split=False) == ("Working as an Accountant", "", []))
     a1 = cards.awards_card(ctx, ["Gold medal"], "x").convert("RGB")
     a2 = cards.awards_card(ctx, ["Gold medal", "Rank 2"], "x").convert("RGB")
-    check("achievements: 2+ = new title (team PSDs), ONE = unchanged (team image pending)",
+    check("achievements: 2+ = bullets (team PSDs), ONE = centred own layout (team image, Raj)",
           ImageChops.difference(a1.crop((0, 150, 1200, 560)), a2.crop((0, 150, 1200, 560))).getbbox() is not None)
     check("job parts: 'as a / as an' split like 'at'",
           cards.job_parts(["Working as an Accountant, Rajkot"]) == ("Working", "as an Accountant, Rajkot", [])
@@ -331,6 +329,23 @@ def main():
     check("2+ businesses: no 'BUSINESS' heading when a row has a Type; kept when none has; own heading kept",
           cards.list_heading({}, bz) == "" and cards.list_heading({}, [{"name": "A"}, {"name": "B"}]) == "Business"
           and cards.list_heading({"heading": "Businesses in X", "businesses": bz}, bz) == "Businesses in X")
+    # the team's exact images (17 Oct 2026): parent card with 3 jobs (Harit), education + occupation (Binjal), one achievement (Raj)
+    fa = {"name": "x", "photo": "photos/couple.jpg", "occupation": ["Business"],
+          "jobs": [{"type": "Business", "name": "Sample Properties, Vadodara", "desc": "Real Estate Broker"},
+                   {"type": "", "name": "Architect & Interior Designer", "desc": ""}, {"type": "", "name": "Member of Sample Association", "desc": ""}]}
+    fc = cards.single_parent(cards.Ctx("boy", ROOT / "samples"), "father", fa).convert("RGB")
+    brown_rows = [y for y in range(1000, 1500) if fc.getpixel((8, y)) == ImageColor.getrgb(BROWN)]
+    check("parent card with jobs: band 1145..1474 like the team image (Harit)", brown_rows[:1] == [1145] and brown_rows[-1:] in ([1473], [1474]),
+          f"{brown_rows[:1]}..{brown_rows[-1:]}")
+    ew = cards.edu_work(cards.Ctx("girl", ROOT / "samples"), {"education": [{"degree": "B A in Interior Design", "institute": "NSID, Rajkot"}],
+         "work": {"style": "business", "label": "Family Business", "company": "The Design's, Rajkot", "desc": "Interior Designer"}}, "x").convert("RGB")
+    bul = [y for y in range(150, 1450) if ew.getpixel((84, y)) == ImageColor.getrgb(cards.EW_BULLET)]
+    tops = [y for y in bul if y - 1 not in bul]
+    check("education + occupation card: 2 round brown bullets, 532 px apart like the team image (Binjal)",
+          len(tops) == 2 and abs(tops[1] - tops[0] - 532) <= 6, str(tops))
+    pa = {"awards": ["Rank 47"], "photos": {"gallery": ["g1.jpg"]}}
+    check("one achievement: gallery strip, with the app tick award_card its own slide",
+          cards.single_award(pa) == "Rank 47" and cards.single_award(dict(pa, award_card=True)) is None)
     from vcards.config import FONTS
     from fontTools.ttLib import TTFont
     cm = TTFont(str(FONTS["anek_semi_b"])).getBestCmap()
@@ -439,9 +454,9 @@ def main():
                                           "photos/couple.jpg").convert("RGB")
     j2 = pj([{"type": "Business", "name": "Shree Sample Saw Mill, Kurundwad-Kolhapur", "desc": "Retailer of Building Material"},
              {"type": "Own Business", "name": "Sample Construction Contractor", "desc": ""}])
-    check("parent Type / Name / Work: band never taller than 1161..1471, photo ends above it",
-          isb(j2, 1165) and isb(j2, 1468) and not isb(j2, 1150) and not isb(j2, 1490)
-          and not any(max(abs(a - b) for a, b in zip(j2.getpixel((600, y)), ImageColor.getrgb(BROWN))) < 6 for y in (1126, 1140)))
+    check("parent Type / Name / Work: band 1145..1474 (team image, 17 Oct 2026), photo ends 20 px above it",
+          isb(j2, 1147) and isb(j2, 1472) and not isb(j2, 1140) and not isb(j2, 1490)
+          and not any(max(abs(a - b) for a, b in zip(j2.getpixel((600, y)), ImageColor.getrgb(BROWN))) < 6 for y in (1128, 1140)))
 
     # parent band text centred (CT, 16 Oct 2026: 4 plain occupation lines touched the bottom of the band, 2 sat high):
     # the space above the letters equals the space below them, for 2-5 lines and for Type / Name / Work rows
@@ -460,7 +475,7 @@ def main():
               min(g) >= 12 and abs(g[0] - g[1]) <= 4, str(g))
     jb = pj([{"type": "Business", "name": "Sample Arts Fashion Pvt Ltd., Jogeshwari East",
               "desc": "Brand Name: SAMPLE CLASS (Manufacturer of Formal Shirts)"}])
-    g = text_gaps(jb)
+    g = text_gaps(jb, 1145, 1472)
     check("parent Type / Name / Work band: text centred", min(g) >= 12 and abs(g[0] - g[1]) <= 4, str(g))
     check("long work text: '(…)' on its own line, never cut in the middle",
           cards._bracket_lines("Brand Name: SAMPLE CLASS (Manufacturer of Formal Shirts)", cards.Style(size=60), 1120)

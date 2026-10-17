@@ -105,8 +105,14 @@ as "Check voice: …").
   under the first role; 2+ businesses: a row's Type is its own bulleted line, the "BUSINESS" heading only when no row has
   a Type; Past Experience = title "Past Experience:" only, 1 item in the job style with the logo below + photo, 2-3 items
   bullets with a logo each, no photo; 2-3 achievements = title "Achievements:" only, round bullets; Income / Property
-  text in Anek Gujarati SemiCondensed Bold, bigger. Unchanged on purpose: hero, the mother / father card, one sibling
-  without a photo, the education + occupation card and a single achievement (team images pending). Spoken text unchanged.
+  text in Anek Gujarati SemiCondensed Bold, bigger. Unchanged on purpose: hero, one sibling without a photo. Spoken text
+  unchanged.
+- **Team's exact images** (CT, 17 Oct 2026; measured, within 3 px): mother / father card with Type / Name / Work rows
+  (Harit) = band 1145..1474, photo 515..1125, type and name the same size, the work smaller and in brackets, no "+", a gap
+  between jobs; education + occupation card (Binjal) = big Anek degrees, round brown bullets, girl titles pink, business
+  TYPE black / name / (work), logo below, baseline steps 154 / 112 / 262 / 156 / 128 / 121; ONE achievement (Raj) =
+  "ACHIEVEMENTS:" + the text centred, Anek SemiCondensed Bold 122, lines 184 px apart; shown on its own slide only with
+  the app tick `award_card: true` (otherwise one achievement stays in the gallery strip).
 - **Business heading** (CT, 15 Oct 2026): `work.heading` (the team's own occupation type, e.g. "Businesses in Kolhapur")
   with 2+ businesses is drawn once above the list (no bullet) and said first in the occupation sentence; ignored for one business.
 - **2 or more siblings without a photo** (CT, 15 Oct 2026): they are left out of the narration and shown together on
