@@ -225,9 +225,19 @@ def cover_reserve(photo: Photo, w: int, h: int, reserve: int, scale: float = 1.0
     k = (y1 - y0) / (h - reserve)            # source px per output px
     ny0 = y0 - reserve * k
     dy = 0
-    if ny0 < 0:                              # not enough photo above the head: start the photo lower
-        dy = int(round(-ny0 / k))
+    if ny0 < 0:
+        # Not enough photo above the head (tight crop / selfie): the photo still fills the whole area from the
+        # top and the face sits higher, partly behind the title bar (CT, 17 Oct 2026: no blurred band on top).
         ny0 = 0.0
+        if h * k > im.height:                # photo too short for the full height at this size: frame wider
+            k2 = im.height / h
+            if w * k2 <= im.width:
+                cx = (x0 + x1) / 2
+                x0 = max(0.0, min(cx - w * k2 / 2, im.width - w * k2))
+                x1 = x0 + w * k2
+                k = k2
+            else:                            # very wide + short photo: last resort, start lower (blurred edge)
+                dy = int(round(h - im.height / k))
     hh = h - dy
     ny1 = min(float(im.height), ny0 + hh * k)
     box = (x0, ny0, x1, ny1)

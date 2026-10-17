@@ -400,6 +400,22 @@ def main():
     r, gg, b = fr.getpixel((1000, 60))
     check("gallery: no light bar above a tightly cropped photo", b > r + 60, str((r, gg, b)))
 
+    # face at the very top of a portrait photo (selfie / tight crop): the photo fills from the top (dy = 0),
+    # no blurred band behind the title bar (CT, 17 Oct 2026); a short wide strip still frames without stretching
+    real_faces = imgs.faces
+    try:
+        imgs.faces = lambda *a, **k: ((350.0, 20.0, 650.0, 380.0),)
+        for size in ((1000, 1600), (1600, 1000), (3000, 700)):
+            Image.new("RGB", size, (90, 120, 90)).save(tight)
+            ph = imgs.Photo("out/_tight.png", ROOT)
+            g_im, (ax, ay), dy = imgs.cover_reserve(ph, 1200, 1110, 150)
+            ok = g_im.width == 1200 and g_im.height == 1110 - dy and 0 <= ay <= g_im.height
+            if size != (3000, 700):
+                ok = ok and dy == 0
+            check(f"gallery: face at the top of a {size[0]}x{size[1]} photo fills from the top", ok, f"dy={dy} {g_im.size}")
+    finally:
+        imgs.faces = real_faces
+
     # education: up to 7 degrees on one card (1-3 keep the approved layout), nothing below the card's bottom
     eds = [{"degree": f"Degree number {i} in Sample Engineering", "institute": f"Sample University {i}, Ahmedabad"} for i in range(7)]
     e7 = cards.education(ctx, eds, "x", None).convert("RGB")

@@ -48,6 +48,9 @@ baselines; a long name / work in a parent band splits before " (" so a bracket p
 (`_bracket_lines`). Self-test: "parent band … text centred" (CT, 16 Oct 2026).
 A one-person photo gets the wide frame only with 2+ faces (`wide_frame`; 1 face = portrait frame like the father);
 the grandparents' village is centred below the band 1206..1387 (CT, 17 Oct 2026).
+Gallery photo with little room above the head (selfie / tight crop): it fills the photo area from the top and the face
+sits higher, partly behind the title bar; no blurred band on top (`imgs.cover_reserve`, CT, 17 Oct 2026). The blurred
+top edge in `video.py` is only the last resort for a very wide + short strip.
 
 ## Never silently degrade
 If a feature can't work (face detector, RAQM), the render must stop with an error. Run `python3 tests/run_tests.py`
