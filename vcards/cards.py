@@ -74,6 +74,16 @@ def photo_boxes(n: int, aspect: float, y0: int, y1: int, wide_y1=None):
     return [(359, y0, 841, y1)]
 
 
+def wide_frame(photo: imgs.Photo) -> bool:
+    """The wide (couple) frame: a photo with 2+ faces; ONE face = the normal portrait frame, also when the photo is
+    nearly square (CT, 17 Oct 2026: a 485x526 photo of one mother was zoomed into the wide frame); no face found =
+    by shape, as before (square or landscape -> wide)."""
+    n = len(imgs.faces(*photo.key))
+    if n:
+        return n >= 2
+    return _aspect(photo) >= 0.9
+
+
 def _aspect(photo: imgs.Photo) -> float:
     im = photo.load()
     if photo.crop:
@@ -165,15 +175,16 @@ def family_pair(ctx: Ctx, kind: str, d_: dict) -> Image.Image:
         band_y = (1160, 1400)
     else:
         title2(d, ctx, "દાદા-દાદી" if kind == "dada_dadi" else "નાના-નાની", 162.5, 509)
-        y0, y1, wide = 565, 1178, 1162
-        band_y = (1222, 1403)
+        # band at the team PSDs' place (1206..1387, CT 17 Oct 2026: the village under it touched the band at 1222..1403)
+        y0, y1, wide = 565, 1162, 1146
+        band_y = (1206, 1387)
     if not photos:                     # no photo uploaded: big name + place band, no empty photo area
         return _family_pair_no_photo(im, d, ctx, kind, d_)
     if kind == "parents" and d_.get("sect"):
         # team PSDs: the sect is the 3rd line INSIDE the band, white, in brackets: name / (village, city) / (sect)
         band_y, y1 = (1150, 1470), 1120
     if photos:
-        boxes = photo_boxes(len(photos), _aspect(photos[0]), y0, y1, wide)
+        boxes = photo_boxes(len(photos), 1.0 if len(photos) == 1 and wide_frame(photos[0]) else 0.5, y0, y1, wide)
         for ph, box in zip(photos, boxes):
             imgs.paste_photo(im, ph, box, 88)
     band(im, *band_y, BROWN)
@@ -200,9 +211,13 @@ def family_pair(ctx: Ctx, kind: str, d_: dict) -> Image.Image:
         if d_.get("sect"):                       # between the band and the bottom edge, never touching it
             draw_line_between(d, d_["sect"], fit(d_["sect"], Style(size=70.7, color=NEAR_BLACK), 1140), band_y[1], H)
     else:
-        draw_line(d, name, fit(name, st, 1140), 600, 1350)
+        draw_line(d, name, fit(name, st, 1140), 600, 1334)
         if d_.get("village"):
-            draw_bottom_line(d, d_["village"], fit(d_["village"], Style(size=66.7, color=BLACK), 1140), 1467)
+            # centred between the band and the bottom edge, the same baseline for every village (letters above and
+            # below the line, e.g. the ુ of સુથરી, measured on a reference word), never touching the band or the edge
+            vst = fit(d_["village"], Style(size=66.7, color=BLACK), 1140)
+            t, b = ink("કુંદરોડી", vst)
+            draw_line(d, d_["village"], vst, 600, (band_y[1] + H) / 2 - (t + b) / 2)
     return im
 
 
@@ -327,13 +342,13 @@ def single_parent(ctx: Ctx, rel: str, d_: dict, fallback_photo=None) -> Image.Im
         # 515..1125 (20 px above the band)
         top, draw_band = _jobs_band(jobs, edu=edu)
         y1 = top - 20
-        box = (220, 515, 980, y1) if _aspect(ph) >= 0.9 else (361, 515, 839, y1)
+        box = (220, 515, 980, y1) if wide_frame(ph) else (361, 515, 839, y1)
         imgs.paste_photo(im, ph, box, 88)
         draw_band(im, d)
         return im
     if ph:
         y1 = 1172 if len(occ) <= 1 else 1125           # multi-line band starts at 1161: keep a margin above it
-        box = (220, 559, 980, y1) if _aspect(ph) >= 0.9 else (359, 559, 841, y1)
+        box = (220, 559, 980, y1) if wide_frame(ph) else (359, 559, 841, y1)
         imgs.paste_photo(im, ph, box, 88)
     if not ph:
         if jobs and edu:
@@ -400,7 +415,7 @@ def sibling(ctx: Ctx, s: dict) -> Image.Image:
     photos = [ctx.photo(x) for x in s.get("photos", []) if x][:2]
     if len(photos) == 2:
         boxes = [(94, 494, 577, 1108), (628, 494, 1111, 1108)]
-    elif photos and _aspect(photos[0]) >= 0.9:
+    elif photos and wide_frame(photos[0]):
         boxes = [(220, 494, 980, 1108)]
     else:
         boxes = [(357, 490, 844, 1109)]

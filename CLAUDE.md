@@ -46,6 +46,8 @@ Condensed (incl. BarlowCondensed-BoldItalic.ttf, OFL, added 15 Oct 2026), Poppin
 Text in a brown band is centred by its letters (`_centred_base`: same space above and below), never by fixed
 baselines; a long name / work in a parent band splits before " (" so a bracket part is its own line
 (`_bracket_lines`). Self-test: "parent band … text centred" (CT, 16 Oct 2026).
+A one-person photo gets the wide frame only with 2+ faces (`wide_frame`; 1 face = portrait frame like the father);
+the grandparents' village is centred below the band 1206..1387 (CT, 17 Oct 2026).
 
 ## Never silently degrade
 If a feature can't work (face detector, RAQM), the render must stop with an error. Run `python3 tests/run_tests.py`

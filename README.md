@@ -115,6 +115,11 @@ as "Check voice: …").
   text) = a line on the slide; shown on its own slide only with the app tick `award_card: true` (otherwise one achievement
   stays in the gallery strip); 2-3 achievements (Vicky) = brown "Achievements:" (Poppins SemiBold, the closest free font
   to the PSD's Nirmala UI), a theme-colour rounded square each, Anek Condensed SemiBold 114, 203 px per item.
+- **Photo frame + grandparents' place** (CT, 17 Oct 2026, a profile with "સુથરી" touching the band and a zoomed mother
+  photo): a one-person card picks the wide couple frame only for a photo with 2+ faces; ONE face = the portrait frame
+  (same as the father) even when the photo is almost square; no face = by shape (`wide_frame`). Dada-dadi / nana-nani
+  with photos: band 1206..1387 (the PSD place), the village line centred between the band and the bottom edge
+  (fixed letter height, so every village sits the same). Self-test: "grandparents: the village never touches the band".
 - **Business heading** (CT, 15 Oct 2026): `work.heading` (the team's own occupation type, e.g. "Businesses in Kolhapur")
   with 2+ businesses is drawn once above the list (no bullet) and said first in the occupation sentence; ignored for one business.
 - **2 or more siblings without a photo** (CT, 15 Oct 2026): they are left out of the narration and shown together on

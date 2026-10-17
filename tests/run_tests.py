@@ -447,8 +447,22 @@ def main():
     nn = cards.family_pair(sc, "nana_nani", {"display_name": "x", "village": "ભુજ", "photos": ["photos/couple.jpg"]}).convert("RGB")
     np_ = cards.family_pair(sc, "parents", {"display_name": "x", "village": "ગામ", "sect": sect, "photos": []}).convert("RGB")
     bott = [ink_bottom(par, 1405), ink_bottom(nn), ink_bottom(np_)]
-    check("bottom text: at least 14 px above the edge (parents sect between band and edge), 24 px elsewhere",
-          bott[0] <= 1486 and bott[1] <= 1476 and bott[2] <= 1476, str(bott))
+    check("bottom text: at least 14 px above the edge (parents sect / grandparents village centred between band and edge), "
+          "24 px elsewhere", bott[0] <= 1486 and bott[1] <= 1486 and bott[2] <= 1476, str(bott))
+    vtop = min(y for y in range(1388, 1500) if sum(1 for x in range(150, 1050, 3)
+               if max(abs(c - d) for c, d in zip(nn.getpixel((x, y)), nn.getpixel((8, y)))) > 60) > 2)
+    check("grandparents: the village never touches the band (CT, 17 Oct 2026)", vtop >= 1387 + 8, str(vtop))
+    Image.open(ROOT / "samples/photos/hero.jpg").convert("RGB").crop((0, 0, 900, 900)).save(ROOT / "out/_square.jpg")
+    real_faces = cards.imgs.faces
+    try:
+        res = []
+        for n in (1, 2, 0):
+            cards.imgs.faces = lambda *a, n=n: tuple((0, 0, 10, 10) for _ in range(n))
+            res.append(cards.wide_frame(cards.imgs.Photo("out/_square.jpg", ROOT)))
+    finally:
+        cards.imgs.faces = real_faces
+    check("square photo: ONE face = portrait frame, 2 faces = wide couple frame, no face = by shape (CT, 17 Oct 2026)",
+          res == [False, True, True], str(res))
 
     # sibling card: "who: text" continues after the name; the brown band keeps its size
     sib = lambda det: cards.sibling(cards.Ctx("boy", ROOT / "samples", "clear"),
