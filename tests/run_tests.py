@@ -270,6 +270,16 @@ def main():
           == [["Team Leader", "at X, Pune", "(Simulation)"], ["Freelance Designer", "as a Consultant"]])
     a1 = cards.awards_card(ctx, ["Gold medal"], "x").convert("RGB")
     a2 = cards.awards_card(ctx, ["Gold medal", "Rank 2"], "x").convert("RGB")
+    blk = lambda im: sum(1 for y in range(600, 1300) if any(sum(im.getpixel((x, y))) < 150 for x in range(100, 1100, 4))
+                         and not any(sum(im.getpixel((x, y - 1))) < 150 for x in range(100, 1100, 4)))
+    a3 = cards.awards_card(ctx, ["At The Young\nAge of 22\nWith All India Rank 47"], "x").convert("RGB")
+    a0 = cards.awards_card(ctx, ["At The Young Age of 22 With All India Rank 47 in CA Final Exam"], "x").convert("RGB")
+    check("one achievement: typed line breaks = lines on the slide (team image, Raj)", blk(a3) == 3, str(blk(a3)))
+    check("one achievement without typed breaks: wraps by itself", blk(a0) >= 2, str(blk(a0)))
+    av = cards.awards_card(ctx, ["AIR 478", "99.95 percentile", "State Rank 2"], "x").convert("RGB")
+    sq = [y for y in range(500, 1200) if max(abs(a - b) for a, b in zip(av.getpixel((60, y)), ImageColor.getrgb(ctx.accent))) < 8]
+    check("2-3 achievements: a theme-colour square per achievement, 203 px apart (team image, Vicky)",
+          len([y for y in sq if y - 1 not in sq]) == 3, str([y for y in sq if y - 1 not in sq]))
     check("achievements: 2+ = bullets (team PSDs), ONE = centred own layout (team image, Raj)",
           ImageChops.difference(a1.crop((0, 150, 1200, 560)), a2.crop((0, 150, 1200, 560))).getbbox() is not None)
     check("job parts: 'as a / as an' split like 'at'",

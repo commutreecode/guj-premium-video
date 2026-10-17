@@ -1248,28 +1248,57 @@ def single_award(p: dict):
 
 
 def awards_card(ctx: Ctx, items: list, first: str) -> Image.Image:
-    """Awards / achievements: own card after the occupation (and past experience) card, music only."""
+    """Awards / achievements: own card after the occupation (and past experience) card, music only (CT, 17 Oct 2026).
+    ONE achievement = the team image (Raj): "ACHIEVEMENTS:" (Anek Condensed 213, theme colour, boys in capitals, baseline
+    458), the text centred in Anek SemiCondensed Bold 122, lines 184 px apart around baseline 907; a line break typed in the
+    app stays a line break (a typed line that is too wide wraps), without typed breaks the text wraps evenly.
+    2-3 achievements = the team image (Vicky): "Achievements:" (brown, Poppins SemiBold = the closest free font to the
+    PSD's Nirmala UI), a theme-colour rounded square per achievement, Anek Condensed SemiBold 114, 203 px per item."""
     im = canvas(ctx)
     d = ImageDraw.Draw(im)
+    col = "#46300D" if ctx.theme == "girl" else "#010101"
     if len(items) == 1:
-        # ONE achievement = the team's exact image (Raj, CT 17 Oct 2026): "ACHIEVEMENTS:" (Anek Condensed 213, theme
-        # colour, boys in capitals, baseline 458), the text centred in Anek SemiCondensed Bold 122, lines 184 px apart
-        # around baseline 907, no bullet
         draw_line(d, "Achievements:", fit("Achievements:", Style(gu="akhand_xb", lat="anek_sb", size=213, color=ctx.accent,
                                                                   upper=ctx.theme == "boy"), 1130), 600, 458)
-        st = Style(gu="akhand_xb", lat="anek_semi_b", size=122.1, color="#46300D" if ctx.theme == "girl" else BLACK)
-        ls, st = wrap_fit(items[0], st, 1010, 4, 0.6)
-        pitch = 184 * st.size / 122.1
+        typed = hard_lines(items[0])
+        k = 1.0
+        while True:
+            st = Style(gu="akhand_xb", lat="anek_semi_b", size=122.1 * k, color=col)
+            if len(typed) == 1:
+                ls, st = wrap_fit(typed[0], st, 1010, 4, 0.6)
+            else:
+                ls = [ln for t in typed for ln in ([t] if measure(t, st) <= 1010 else wrap_balanced(t, st, 1010))]
+            pitch = 184 * st.size / 122.1
+            if pitch * (len(ls) - 1) <= 1440 - 640 or k <= 0.5:
+                break
+            k -= 0.04
         for i, ln in enumerate(ls):
-            draw_line(d, ln, st, 600, 907 - pitch * (len(ls) - 1) / 2 + i * pitch)
+            draw_line(d, ln, fit(ln, st, 1100, 0.7), 600, 907 - pitch * (len(ls) - 1) / 2 + i * pitch)
         return im
-    # team PSDs (Henal, Vicky, 17 Oct 2026): only the title "Achievements:" (big, theme colour; boys in capitals),
-    # round bullets, Anek Gujarati Condensed (girl: dark brown). ONE achievement on its own slide: team image pending.
     t = "Achievements:"
-    draw_line(d, t, Style(gu="akhand_xb", lat="anek_b", size=190, color=ctx.accent, upper=ctx.theme == "boy"), 600, 400)
-    col = "#46300D" if ctx.theme == "girl" else BLACK
-    bullet_list(im, d, items, ctx.accent, "dot", 80, 150, 1150, 700, 120, 1430, lat="anek_sb", color=col,
-                line_k=1.12, gap_k=1.2, center_top=540)
+    draw_line(d, t, fit(t, Style(gu="akhand_xb", lat="poppins_sb", size=128.9, color=BROWN), 1000), 600, 392)
+    X_B, X_T, R = 43, 112, 1170
+    k = 1.0
+    while True:
+        st = Style(gu="akhand_xb", lat="anek_sb", size=114 * k, color=col)
+        rows, y = [], 637.0                                 # first baseline (team image: cap top 560)
+        for i, it in enumerate(items):
+            if i:
+                y += 203 * k - st.size * 1.1                # one-line items 203 px apart, like the image
+            for j, ln in enumerate(ln for seg in hard_lines(it) for ln in wrap_balanced(seg, st, R - X_T)):
+                if j:
+                    y += st.size * 1.1
+                rows.append((ln, y, j == 0))
+            y += st.size * 1.1
+        if rows[-1][1] <= 1440 or k <= 0.5:
+            break
+        k -= 0.04
+    for ln, base, bullet in rows:
+        if bullet:
+            b = 34 * k
+            cy = base - 41 * k
+            imgs.fill_rrect(im, (X_B, cy - b / 2, X_B + b, cy + b / 2), 8 * k, ctx.accent)
+        draw_line(d, ln, fit(ln, st, R - X_T, 0.8), X_T, base, "left")
     return im
 
 

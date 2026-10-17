@@ -111,8 +111,10 @@ as "Check voice: …").
   (Harit) = band 1145..1474, photo 515..1125, type and name the same size, the work smaller and in brackets, no "+", a gap
   between jobs; education + occupation card (Binjal) = big Anek degrees, round brown bullets, girl titles pink, business
   TYPE black / name / (work), logo below, baseline steps 154 / 112 / 262 / 156 / 128 / 121; ONE achievement (Raj) =
-  "ACHIEVEMENTS:" + the text centred, Anek SemiCondensed Bold 122, lines 184 px apart; shown on its own slide only with
-  the app tick `award_card: true` (otherwise one achievement stays in the gallery strip).
+  "ACHIEVEMENTS:" + the text centred, Anek SemiCondensed Bold 122, lines 184 px apart, a typed line break (`\n` in the
+  text) = a line on the slide; shown on its own slide only with the app tick `award_card: true` (otherwise one achievement
+  stays in the gallery strip); 2-3 achievements (Vicky) = brown "Achievements:" (Poppins SemiBold, the closest free font
+  to the PSD's Nirmala UI), a theme-colour rounded square each, Anek Condensed SemiBold 114, 203 px per item.
 - **Business heading** (CT, 15 Oct 2026): `work.heading` (the team's own occupation type, e.g. "Businesses in Kolhapur")
   with 2+ businesses is drawn once above the list (no bullet) and said first in the occupation sentence; ignored for one business.
 - **2 or more siblings without a photo** (CT, 15 Oct 2026): they are left out of the narration and shown together on
